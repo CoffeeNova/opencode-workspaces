@@ -1,0 +1,19 @@
+{
+  "name": "opencode-workspaces",
+  "private": true,
+  "type": "module",
+  "workspaces": [".opencode"],
+  "scripts": {
+    "bun-typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:opencode": "bun run tests/opencode-smoke.ts"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.0.30",
+    "@types/bun": "1.4.3",
+    "@vscode/ripgrep": "1.18.0",
+    "solid-js": "1.9.15",
+    "typescript": "5.8.3",
+    "zod": "4.1.8"
+  }
+}
