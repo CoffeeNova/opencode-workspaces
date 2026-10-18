@@ -1,17 +1,34 @@
 {
   "name": "opencode-workspaces",
   "private": true,
+  "exports": { ".": "./src/index.ts", "./tui": "./src/tui.ts", "./rpc": "./src/rpc.ts" },
   "type": "module",
+  "packageManager": "bun@1.4.3",
   "workspaces": [".opencode"],
+  "peerDependencies": {
+    "@opentui/core": "0.5.17",
+    "@opentui/solid": "0.5.17",
+    "solid-js": "1.9.15"
+  },
   "scripts": {
     "bun-typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:opencode": "bun run tests/opencode-smoke.ts"
+    "test:opencode": "bun run tests/opencode-smoke.ts",
+    "test:capabilities": "bun run tests/opencode-capabilities.ts",
+    "test:capabilities:tui": "bun run tests/opencode-capabilities.ts --tui",
+    "test:capabilities:instructions": "bun run tests/opencode-instruction-capabilities.ts",
+    "check:workspaces": "bun run scripts/check-workspaces.ts"
   },
   "devDependencies": {
+    "@opencode/client": "2.0.30",
     "@opencode/plugin": "2.0.30",
+    "@opencode/schema": "2.0.30",
+    "@opentui/core": "0.5.17",
+    "@opentui/solid": "0.5.17",
     "@types/bun": "1.4.3",
     "@vscode/ripgrep": "1.18.0",
+    "@xterm/headless": "5.5.0",
+    "effect": "4.0.1",
     "solid-js": "1.9.15",
     "typescript": "5.8.3",
     "zod": "4.1.8"

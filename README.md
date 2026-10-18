@@ -1,13 +1,95 @@
 # opencode-workspaces
 
-A local, read-only **virtual workspace** plugin for arbitrary directories. Git is
-not required. Create named workspaces, register up to 20 folders, switch the active
-mapping, and let the agent read/search through `alias:/` paths.
+A multi-root workspace plugin for OpenCode V2. The new **development package in
+`src/` is working**, while the older automatically discovered `.opencode/` plugin
+remains available separately. Do not load both in the same Location.
+
+## Working development release
+
+The actual `/workspace` menu can create saved definitions, browse server folders,
+add/remove registrations, inspect status, and explicitly open an empty workspace
+session without model calls. `/workspace-add` and `/workspace-switch` have direct
+handlers and palette entries. Session selections and pinned roots persist in a
+transactional SQLite catalog. The agent receives scoped root/nested `AGENTS.md`
+and can use native file tools, tests, and Git in the selected independent roots.
+The prompt footer shows the displayed session's `[ws:name]`, with compact
+ellipsized names in narrow terminals. `[ws:none]` means no selection;
+`[ws:unavailable]` means the server could not confirm it, and `!` marks instruction
+loading blocked at the last request. Background refresh reads selection metadata,
+not repository contents or file counts.
+
+The [revised plan](docs/DEVELOPMENT_PLAN.md#0-implementation-decision-after-capability-research)
+chooses conservative first-release behavior:
+
+- Select a workspace **before starting work**. After the first request, switch by
+  opening a new session; the existing session's roots never change mid-task.
+- Saved-definition edits affect future selections, not existing pinned sessions.
+  Before starting work, select the definition again to apply saved root changes.
+- Children/forks do not automatically inherit selection. No native session metadata
+  is modified, and the experimental metadata journal is not used.
+- One catalog per server; project overrides, legacy import, multi-root search
+  helpers, and release-install polish remain unfinished.
+  Native glob/grep targeting bound roots are blocked until safe search adapters
+  replace them; explicit native reads and directory listings work in this slice.
+- Instruction byte limits are 32 KiB/file and 64 KiB total. The initial adapter
+  requires a declared context of at least 128k; smaller/unknown budgets are blocked,
+  not silently treated as supported. No shell/MCP sandbox or atomic instruction
+  freshness across a native permission wait is claimed.
+
+To check the real package after installing development dependencies:
+
+```powershell
+bun install --frozen-lockfile
+bun run bun-typecheck
+bun run check:workspaces
+```
+
+`check:workspaces` drives the actual menu in a private Windows OpenCode TUI, creates
+two disposable repositories, verifies both native edits/test suites/Git operations,
+checks sealed selection and sensitive-path rejection, and restarts only its private
+server to verify persistence. It also checks independent session indicators, narrow
+terminals, preserved draft input, and explicit application of a saved non-Git folder
+before work starts. It uses a deterministic loopback provider, not a paid
+model. It retains its exact fixture path for inspection. This is not a second mock
+workspace implementation or an installation into your current session.
+
+For an **opt-in source installation** after `bun install`, use a neutral launcher
+Location without the legacy plugin/Markdown commands. Add the package to that
+Location's own `opencode.json`, adjusting paths:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [{
+    "package": "E:/Repository/opencode-workspaces",
+    "options": { "catalogPath": "C:/data/workspace-manager/workspaces-v2.sqlite" }
+  }]
+}
+```
+
+Use a **new `.sqlite` file**, not an OpenCode database or the existing v1 JSON
+registry. The package rejects foreign databases. Opening the menu does not change
+your launch directory or load any registered root's plugins. Folder browsing is
+authenticated, human-initiated metadata administration; instruction contents are
+read later with the real session's permissions. Model tools use `workspace_status`
+and `workspace_resolve` plus native operations; there is no generic content/execute
+RPC. Source installation and the retained development fixture are not a published
+release/tarball acceptance claim.
+
+Current handoff: [implementation status and next work](docs/PHASE_ZERO_HANDOFF.md).
+Historical [capability findings](docs/PHASE_ZERO_FINDINGS.md) explain which original
+requirements could not be supported safely and why the scope changed.
+
+## Legacy read-only plugin
+
+The remainder of this README documents the existing `.opencode/` installation,
+not the new `src/` package. It remains a read-only, globally selected virtual
+workspace with model-orchestrated menus. Its registry has not been migrated.
 
 ## Compatibility and UI limits
 
-**This implementation targets OpenCode V2, pinned to `@opencode/plugin@2.0.30`
-to match the installed CLI/service.** It default-exports `Plugin.define({id,
+**This implementation targets OpenCode V2 with `@opencode/plugin@2.0.30`;
+the tested CLI/private-service baseline is `2.0.32`.** It default-exports `Plugin.define({id,
 setup})`; it no longer imports `@opencode-ai/plugin` or returns V1 hooks. The
 original registry format, tool names and security checks are retained, so existing
 workspaces need no data migration. V1 runtimes are no longer supported.
@@ -72,7 +154,7 @@ specified tool names and argument fields are otherwise unchanged.
 
 ## Install
 
-Use **OpenCode V2.0.30** and Bun on Windows. Bun `1.4.3` is the
+Use **OpenCode V2.0.32** and Bun on Windows. Bun `1.4.3` is the
 development/test runtime. All paths can use `C:/...`; commands below work in
 Windows PowerShell 5.1 (no `&&`, bash, WSL, or native dialogs required).
 
@@ -443,6 +525,8 @@ escalation, notification routing and listener cleanup. The dev-only `@vscode/rip
 dependency supplies the real search binary for tests; users need not install it
 for fallback operation. `solid-js` is a development dependency for importing the
 published TUI SDK during unit tests; OpenCode provides its own TUI runtime.
+The development-only `@xterm/headless` dependency parses real PTY frames for
+current-screen assertions; it is not bundled into the plugin or used to mock OpenCode.
 
 For an opt-in integration check against the installed OpenCode service:
 
@@ -460,6 +544,38 @@ The check stops only its own private process tree; it does not restart the share
 service, execute workspace tools, evict shared Locations, or modify system plugins
 or the user's global registry. It does not simulate an interactive TUI. On Windows
 it supports a binary on PATH or the V2 `@opencode/cli` npm wrapper layout.
+
+### Development capability probes
+
+```powershell
+bun run test:capabilities
+bun run test:capabilities:tui
+# Independent instruction-delivery probe:
+bun run test:capabilities:instructions
+# UI-only iteration, with the provider completely unavailable:
+bun run tests/opencode-tui-capabilities.ts --keep
+```
+
+These opt-in checks use a separate package under `tests/fixtures/`, disposable
+configuration/storage, two external fixture repositories, a loopback scripted
+provider, and a private server. The second also drives an actual Windows TUI
+through the authenticated PTY API. `/workspace-probe` is a test-only direct
+command; the existing `/workspace` behavior is unchanged. No paid model is used,
+and no user registry/global configuration/shared service is modified.
+The UI-only runner exercises the same terminal helper without scripted development
+requests. Its generated fixture package, not repository source or host internals,
+is changed when testing native local-source reloads.
+
+See [results, limitations, artifacts, and remaining gates](docs/PHASE_ZERO_FINDINGS.md).
+Lifecycle probes now include native inherited metadata, Effect-native idle waits,
+scoped executor interruption, and private-server restart checks.
+The separate instruction probe captures fixed-root/nested `AGENTS.md` content in
+real scripted requests and checks pre-mutation fingerprints, rename/patch targets,
+permissions, and byte overflow. Its mapping is test-only; it does not solve either
+binding blocker or validate token budgeting for real small-context models.
+In particular, native external reads do not load external `AGENTS.md`, and native
+snapshots/undo do not cover external edits. These tests do not establish that the
+future workspace instruction or lifecycle adapters are implemented.
 
 ### Startup troubleshooting
 
