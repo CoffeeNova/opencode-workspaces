@@ -1,51 +1,68 @@
 import { Database } from "bun:sqlite"
 import { createHash, randomUUID } from "node:crypto"
 import * as fs from "node:fs/promises"
+import { homedir } from "node:os"
 import path from "node:path"
-import { Binding, LegacyImportResult, Workspace, WorkspaceError, type Change, type State } from "../domain.ts"
+import { Binding, Workspace, WorkspaceError, type Change } from "../domain.ts"
 import { absolute, assertNotDenied, expanded, pathKey, suggestedAlias } from "./paths.ts"
 
 const APPLICATION_ID = 0x57534d32
+const STORAGE_VERSION = 2
 type Row = { workspace: string | null; sealed: number; directory: string }
 type Meta = { catalogID: string; revision: number }
 
 export class Catalog {
   private constructor(private readonly db: Database) {}
-  static async open(raw: string, base: string) {
-    if (path.extname(raw).toLowerCase() !== ".sqlite") throw new WorkspaceError("INVALID_REGISTRY", "Workspace catalogs require a .sqlite path, never the legacy JSON registry")
+  static async defaultPath() {
+    if (process.platform !== "win32") return path.join(homedir(), ".config", "opencode", "workspace-manager", "workspaces-v2.sqlite")
+    const local = process.env.LOCALAPPDATA || path.join(homedir(), "AppData", "Local")
+    if (!path.isAbsolute(local)) throw new WorkspaceError("INVALID_REGISTRY", "LOCALAPPDATA must be an absolute directory; correct it or set options.catalogPath explicitly")
+    return path.join(local, "opencode-workspaces", "workspaces-v2.sqlite")
+  }
+  private static async locate(raw: string, base: string, create: boolean) {
+    if (path.extname(raw).toLowerCase() !== ".sqlite") throw new WorkspaceError("INVALID_REGISTRY", "Workspace catalogs require a .sqlite path")
     const file = absolute(raw, base)
-    await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
-    const parent = await fs.realpath(path.dirname(file))
-    const canonical = path.join(parent, path.basename(file))
-    const info = await fs.lstat(canonical).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; return undefined })
+    if (create) await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
+    const info = await fs.lstat(file).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; return undefined })
+    if (!info && !create) return
     if (info && (!info.isFile() || info.isSymbolicLink())) throw new WorkspaceError("INVALID_REGISTRY", "Catalog must be a regular unlinked file")
-    const db = new Database(canonical, { create: true, strict: true })
+    return { file: path.join(await fs.realpath(path.dirname(file)), path.basename(file)), exists: !!info }
+  }
+  static async existing(raw: string, base: string) {
+    const target = await Catalog.locate(raw, base, false)
+    if (!target) return
+    const db = new Database(target.file, { readonly: true, strict: true })
+    try {
+      db.exec("PRAGMA busy_timeout=5000")
+      const app = db.query<{ application_id: number }, []>("PRAGMA application_id").get()!.application_id
+      if (app !== APPLICATION_ID) throw new WorkspaceError("INVALID_REGISTRY", "This is not a workspace catalog; nothing was overwritten")
+      const version = db.query<{ user_version: number }, []>("PRAGMA user_version").get()!.user_version
+      if (version !== STORAGE_VERSION) throw new WorkspaceError("INVALID_REGISTRY", `Unsupported catalog storage version ${version}; expected ${STORAGE_VERSION}`)
+      const catalog = new Catalog(db)
+      catalog.meta()
+      return catalog
+    } catch (error) { db.close(); throw error }
+  }
+  static async open(raw: string, base: string, create = true) {
+    const target = await Catalog.locate(raw, base, create)
+    if (!target) throw new WorkspaceError("CATALOG_UNAVAILABLE", "The workspace catalog is missing; restore it before using an existing workspace session")
+    const db = new Database(target.file, { create, strict: true })
     try {
       db.exec("PRAGMA busy_timeout=5000")
       db.transaction(() => {
         const app = db.query<{ application_id: number }, []>("PRAGMA application_id").get()!.application_id
         const tables = db.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type='table'").all()
-        if (app !== APPLICATION_ID && (app !== 0 || tables.length || info)) throw new WorkspaceError("INVALID_REGISTRY", "This is not a workspace catalog; nothing was imported or overwritten")
+        if (app !== APPLICATION_ID && (app !== 0 || tables.length || target.exists)) throw new WorkspaceError("INVALID_REGISTRY", "This is not a workspace catalog; nothing was overwritten")
         if (app === APPLICATION_ID) {
           const version = db.query<{ user_version: number }, []>("PRAGMA user_version").get()!.user_version
-          if (version !== 1 && version !== 2) throw new WorkspaceError("INVALID_REGISTRY", "Unsupported catalog storage version")
-          if (version === 1) {
-            try {
-              const previous = new Catalog(db)
-              previous.state()
-              for (const row of db.query<Row, []>("SELECT workspace,sealed,directory FROM bindings").all()) previous.binding(row)
-              db.query("SELECT requestID,fingerprint FROM receipts LIMIT 1").all()
-            } catch { throw new WorkspaceError("INVALID_REGISTRY", "Invalid existing catalog; its storage version was not changed") }
-            db.exec("CREATE TABLE imports (sourceKey TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL); PRAGMA user_version=2")
-          }
+          if (version !== STORAGE_VERSION) throw new WorkspaceError("INVALID_REGISTRY", `Unsupported catalog storage version ${version}; expected ${STORAGE_VERSION}`)
           return
         }
-        db.exec(`PRAGMA application_id=${APPLICATION_ID}; PRAGMA user_version=2;
+        db.exec(`PRAGMA application_id=${APPLICATION_ID}; PRAGMA user_version=${STORAGE_VERSION};
           CREATE TABLE catalog (catalogID TEXT NOT NULL, revision INTEGER NOT NULL);
           CREATE TABLE workspaces (id TEXT PRIMARY KEY, data TEXT NOT NULL);
           CREATE TABLE bindings (sessionID TEXT PRIMARY KEY, directory TEXT NOT NULL, workspace TEXT, sealed INTEGER NOT NULL CHECK(sealed IN (0,1)));
-          CREATE TABLE receipts (requestID TEXT PRIMARY KEY, fingerprint TEXT NOT NULL);
-          CREATE TABLE imports (sourceKey TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL);`)
+          CREATE TABLE receipts (requestID TEXT PRIMARY KEY, fingerprint TEXT NOT NULL);`)
         db.query("INSERT INTO catalog VALUES (?, 0)").run(randomUUID())
       }).immediate()
       db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL")
@@ -79,55 +96,22 @@ export class Catalog {
     if (row && ((row.sealed !== 0 && row.sealed !== 1) || typeof row.directory !== "string" || !path.isAbsolute(row.directory))) throw new WorkspaceError("INVALID_REGISTRY", "Invalid session binding")
     return row ? Binding.parse({ workspace: row.workspace ? this.decode(row.workspace) : null, sealed: row.sealed === 1, directory: row.directory }) : null
   }
-  state(sessionID?: string): State {
+  state(sessionID?: string) {
     return this.db.transaction(() => ({ ...this.meta(), workspaces: this.db.query<{ id: string; data: string }, []>("SELECT id, data FROM workspaces ORDER BY id").all().map((row) => this.decode(row.data, row.id)).sort((a, b) => a.name.localeCompare(b.name, "en")), binding: sessionID ? this.binding(this.row(sessionID)) : null }))()
   }
   selection(sessionID: string) {
     // Footer refreshes must not enumerate every saved workspace or touch roots.
     return this.db.transaction(() => ({ ...this.meta(), binding: this.binding(this.row(sessionID)) }))()
   }
-  imported(sourcePath: string, fingerprint: string): LegacyImportResult | undefined {
-    this.meta()
-    const row = this.db.query<{ fingerprint: string; result: string }, [string]>("SELECT fingerprint,result FROM imports WHERE sourceKey=?").get(pathKey(sourcePath))
-    if (!row) return undefined
-    if (row.fingerprint !== fingerprint) throw new WorkspaceError("IMPORT_CHANGED", "This source was already imported with different content; it will not be imported again")
-    try { return LegacyImportResult.parse(JSON.parse(row.result)) } catch { throw new WorkspaceError("INVALID_REGISTRY", "Invalid import receipt") }
-  }
-  importLegacy(input: { sourcePath: string; fingerprint: string; backupPath: string; active: string | null; workspaces: { name: string; roots: Workspace["roots"] }[] }, expectedRevision: number): LegacyImportResult {
-    return this.db.transaction(() => {
-      const previous = this.imported(input.sourcePath, input.fingerprint)
-      if (previous) return previous
-      if (this.meta().revision !== expectedRevision) throw new WorkspaceError("REVISION_CONFLICT", "Workspace data changed; preview the import again")
-      const existing = this.state().workspaces
-      if (existing.length + input.workspaces.length > 1000) throw new WorkspaceError("REGISTRY_FULL", "Import would exceed the 1000-workspace limit")
-      const names = new Set(existing.map((workspace) => workspace.name))
-      const created = input.workspaces.map((workspace) => {
-        if (names.has(workspace.name)) throw new WorkspaceError("WORKSPACE_EXISTS", `Import conflicts with workspace ${JSON.stringify(workspace.name)}; no definitions were imported`)
-        names.add(workspace.name)
-        const definition = { ...workspace, id: randomUUID(), revision: 1 }
-        return this.decode(JSON.stringify(definition), definition.id)
-      })
-      if (input.active !== null && !created.some((workspace) => workspace.name === input.active)) throw new WorkspaceError("INVALID_REGISTRY", "Legacy active workspace does not exist")
-      const result = LegacyImportResult.parse({
-        sourcePath: input.sourcePath, backupPath: input.backupPath,
-        imported: created.map(({ id, name }) => ({ id, name })),
-        suggestedWorkspaceID: created.find((workspace) => workspace.name === input.active)?.id ?? null,
-      })
-      for (const workspace of created) this.db.query("INSERT INTO workspaces VALUES (?,?)").run(workspace.id, JSON.stringify(workspace))
-      this.db.query("INSERT INTO imports VALUES (?,?,?)").run(pathKey(input.sourcePath), input.fingerprint, JSON.stringify(result))
-      this.db.query("UPDATE catalog SET revision=revision+1").run()
-      return result
-    }).immediate()
-  }
   capture(sessionID: string, directory: string) {
     return this.db.transaction(() => {
       const row = this.row(sessionID)
       this.meta()
-      this.binding(row)
-      if (row?.workspace && pathKey(row.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "This session's workspace belongs to its original Location")
-      if (!row && this.db.query<{ count: number }, []>("SELECT count(*) AS count FROM bindings").get()!.count >= 10_000) throw new WorkspaceError("REGISTRY_FULL", "Session catalog maintenance is required; no live bindings were removed")
-      this.db.query("INSERT INTO bindings(sessionID,directory,workspace,sealed) VALUES (?,?,NULL,1) ON CONFLICT(sessionID) DO UPDATE SET sealed=1").run(sessionID, directory)
-      return this.binding(this.row(sessionID))!
+      const binding = this.binding(row)
+      if (!binding?.workspace) return null
+      if (pathKey(binding.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "This session's workspace belongs to its original Location")
+      this.db.query("UPDATE bindings SET sealed=1 WHERE sessionID=?").run(sessionID)
+      return { ...binding, sealed: true }
     }).immediate()
   }
   change(input: Change, directory: string, emptySession: boolean, canonicalRoot?: string) {
@@ -146,7 +130,7 @@ export class Catalog {
       if (action.kind === "attach" || action.kind === "detach") {
         if (!input.sessionID) throw new WorkspaceError("SESSION_REQUIRED", "Select an empty session first")
         const old = this.row(input.sessionID)
-        if (!emptySession || old?.sealed) throw new WorkspaceError("SESSION_STARTED", "This session has already started. Open the workspace in a new session instead")
+        if (!emptySession || old?.sealed) throw new WorkspaceError("SESSION_STARTED", "This session has started or cannot be confirmed empty. Open the workspace in a new session instead")
         if (old?.workspace && pathKey(old.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "Session Location changed")
         if (!old && this.db.query<{ count: number }, []>("SELECT count(*) AS count FROM bindings").get()!.count >= 10_000) throw new WorkspaceError("REGISTRY_FULL", "Session catalog maintenance is required")
         this.db.query("INSERT INTO bindings VALUES (?,?,?,0) ON CONFLICT(sessionID) DO UPDATE SET directory=excluded.directory,workspace=excluded.workspace").run(input.sessionID, directory, action.kind === "attach" ? JSON.stringify(workspace!) : null)

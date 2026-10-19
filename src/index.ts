@@ -1,12 +1,10 @@
 import { Plugin } from "@opencode/plugin"
 import { Error as ToolError } from "@opencode/plugin/promise/tool"
 import * as fs from "node:fs/promises"
-import { homedir } from "node:os"
 import path from "node:path"
 import { z } from "zod"
-import { Alias, WorkspaceError, type Selection } from "./domain.ts"
+import { Alias, WorkspaceError, type Binding, type Selection, type Workspace } from "./domain.ts"
 import { Catalog } from "./infrastructure/catalog.ts"
-import { importLegacy, previewLegacy } from "./infrastructure/legacy-import.ts"
 import { absolute, browse, canonicalDirectory, checkedTarget, expanded, inside, overlapsRoots, pathKey, slash } from "./infrastructure/paths.ts"
 import { searchWorkspace } from "./infrastructure/search.ts"
 import { instructionBlock, instructionDelivery, InstructionError, patchTargets } from "./instructions/delivery.ts"
@@ -15,37 +13,130 @@ import { WorkspaceRPC } from "./rpc.ts"
 function failure(error: unknown): WorkspaceError {
   if (error instanceof WorkspaceError) return error
   const code = (error as NodeJS.ErrnoException)?.code
-  if (code && ["ENOENT", "EACCES", "EPERM", "ENOTDIR", "EBUSY", "SQLITE_BUSY"].includes(code)) return new WorkspaceError(code, "Workspace path or catalog is unavailable; reopen the menu after correcting it")
+  if (typeof code === "string" && (["ENOENT", "EACCES", "EPERM", "ENOTDIR", "EBUSY", "EIO", "EROFS"].includes(code) || code.startsWith("SQLITE_"))) return new WorkspaceError(code, "Workspace path or catalog is unavailable; reopen /workspace after correcting it")
   throw error // Preserve native permission rejection and cancellation.
 }
+
+const helperTools = ["workspace_glob", "workspace_grep", "workspace_status", "workspace_resolve"] as const
+type Inactive = { mode: "passive" } | { mode: "unavailable"; error: WorkspaceError }
+type Resolution = Inactive | { mode: "active"; binding: Binding & { workspace: Workspace } }
 
 export default Plugin.define({
   id: "workspace-manager.v2",
   async setup(ctx) {
     if (ctx.options.catalogPath !== undefined && (typeof ctx.options.catalogPath !== "string" || !ctx.options.catalogPath.trim())) throw new Error("options.catalogPath must be a non-empty .sqlite path")
-    if ((await ctx.tool.list()).some((tool) => tool.id === "workspace_read")) throw new Error("Do not load the legacy workspace-manager alongside the new package in one Location")
     const directory = slash(await fs.realpath(ctx.location.directory))
-    const catalogPath = ctx.options.catalogPath ?? path.join(homedir(), ".config", "opencode", "workspace-manager", "workspaces-v2.sqlite")
-    const catalog = await Catalog.open(catalogPath, directory)
+    const configuredCatalogPath = ctx.options.catalogPath
+    let catalogPath: Promise<string> | undefined
+    let catalog: Catalog | undefined
+    let reader: Catalog | undefined
+    let reading: Promise<Catalog | undefined> | undefined
+    let writing: Promise<Catalog> | undefined
+    let disposed = false
+    const knownActive = new Set<string>()
+    const inactive = new Map<string, Inactive>()
+    const started = new Set<string>()
+    let admissionFull = false
     const deliveries = new Map<string, ReturnType<typeof instructionDelivery>>()
     const instructionStates = new Map<string, Selection["instructions"]>()
-    async function compatible() {
-      if ((await ctx.tool.list()).some((tool) => tool.id === "workspace_read")) throw new WorkspaceError("CONFLICTING_PLUGIN", "Disable the legacy workspace-manager and its Markdown commands in this Location before using this package")
+    function requestStarted(sessionID: string) {
+      if (started.has(sessionID) || admissionFull) return
+      if (started.size < 10_000) started.add(sessionID)
+      else {
+        admissionFull = true
+        console.warn("[workspace-manager] Session admission capacity reached; further attachment is disabled until plugin reload. Native passive sessions remain unchanged.")
+      }
+    }
+    function cacheInactive(sessionID: string, value: Inactive) {
+      inactive.delete(sessionID)
+      inactive.set(sessionID, value)
+      if (inactive.size > 2048) inactive.delete(inactive.keys().next().value!)
+    }
+    function catalogLocation() {
+      catalogPath ??= (configuredCatalogPath === undefined ? Catalog.defaultPath() : Promise.resolve(configuredCatalogPath)).catch((error: unknown) => { catalogPath = undefined; throw error })
+      return catalogPath
+    }
+    async function metadataCatalog() {
+      if (catalog) return catalog
+      if (writing) return writing
+      if (reader) return reader
+      reading ??= catalogLocation().then((file) => Catalog.existing(file, directory)).then((value) => {
+        if (disposed) { value?.close(); throw new WorkspaceError("PLUGIN_DISPOSED", "Workspace plugin was unloaded") }
+        reader = value
+        return value
+      }).finally(() => { reading = undefined })
+      return reading
+    }
+    async function writableCatalog(create: boolean) {
+      if (catalog) return catalog
+      writing ??= catalogLocation().then((file) => Catalog.open(file, directory, create)).then((value) => {
+        if (disposed) { value.close(); throw new WorkspaceError("PLUGIN_DISPOSED", "Workspace plugin was unloaded") }
+        catalog = value
+        return value
+      }).finally(() => { writing = undefined })
+      return writing
+    }
+    function remember(sessionID: string, binding: Binding | null) {
+      if (binding?.workspace) {
+        knownActive.add(sessionID)
+        if (pathKey(binding.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "This binding belongs to the session's original Location")
+        inactive.delete(sessionID)
+      } else {
+        if (knownActive.has(sessionID)) throw new WorkspaceError("BINDING_UNAVAILABLE", "This session's active binding cannot be confirmed; restore its catalog before continuing workspace work")
+        cacheInactive(sessionID, { mode: "passive" })
+      }
+    }
+    async function selection(sessionID: string) {
+      const current = await metadataCatalog()
+      const result = current?.selection(sessionID) ?? { catalogID: null, revision: 0, binding: null }
+      remember(sessionID, result.binding)
+      return result
+    }
+    async function resolve(sessionID: string): Promise<Resolution> {
+      const cached = inactive.get(sessionID)
+      if (cached && !knownActive.has(sessionID)) return cached
+      try {
+        const { binding } = await selection(sessionID)
+        return binding?.workspace ? { mode: "active", binding: { ...binding, workspace: binding.workspace } } : { mode: "passive" }
+      } catch (error) {
+        const problem = failure(error)
+        if (cached?.mode !== "unavailable" || cached.error.message !== problem.message) console.warn(`[workspace-manager] Binding resolution unavailable for ${sessionID}: ${problem.message}. Known active sessions fail closed; an undiscovered session retains native behavior, not a confirmed passive binding. Reopen /workspace after restoring catalog access.`)
+        const result = { mode: "unavailable" as const, error: problem }
+        cacheInactive(sessionID, result)
+        return result
+      }
+    }
+    async function canAttach(sessionID: string | undefined, binding: Binding | null) {
+      if (!sessionID || binding?.sealed || started.has(sessionID) || admissionFull) return false
+      const empty = (await ctx.session.context({ sessionID })).length === 0
+      return empty && !started.has(sessionID) && !admissionFull
     }
     async function session(sessionID: string) {
-      await compatible()
       const session = await ctx.session.get({ sessionID })
       if (pathKey(await fs.realpath(session.location.directory)) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "Reopen workspace management in the session's own Location")
-      const bound = catalog.selection(sessionID).binding
-      if (bound?.workspace && pathKey(bound.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "This binding belongs to the session's original Location")
       return session
+    }
+    async function workspaceBinding(sessionID: string) {
+      requestStarted(sessionID)
+      try {
+        const resolved = await resolve(sessionID)
+        if (resolved.mode === "unavailable") throw resolved.error
+        if (resolved.mode === "passive") throw new WorkspaceError("NO_WORKSPACE", "Explicitly select a workspace through /workspace in an empty or new session")
+        await session(sessionID)
+        const binding = (await writableCatalog(false)).capture(sessionID, directory)
+        if (!binding?.workspace) throw new WorkspaceError("BINDING_UNAVAILABLE", "The active workspace binding disappeared; restore its catalog before continuing")
+        return { ...binding, workspace: binding.workspace }
+      } catch (error) {
+        const problem = failure(error)
+        throw new ToolError({ message: problem.message })
+      }
     }
     try {
       const rpc = await ctx.rpc.register(WorkspaceRPC, {
         selection: async (input, call) => {
           try {
             await session(input.sessionID)
-            const { binding, ...meta } = catalog.selection(input.sessionID)
+            const { binding, ...meta } = await selection(input.sessionID)
             const workspace = binding?.workspace
             return { ...meta, workspace: workspace ? { id: workspace.id, name: workspace.name, revision: workspace.revision, rootCount: workspace.roots.length } : null, sealed: binding?.sealed ?? false, instructions: instructionStates.get(input.sessionID) ?? "not-loaded" }
           } catch (error) {
@@ -55,12 +146,11 @@ export default Plugin.define({
         },
         state: async (input, call) => {
           try {
-            await compatible()
             if (input.sessionID) await session(input.sessionID)
-            // A session created before plugin installation/reload can already
-            // have history without a catalog row. Do not offer a dead attach UI.
-            if (input.sessionID && !catalog.state(input.sessionID).binding?.sealed && (await ctx.session.context({ sessionID: input.sessionID })).length) catalog.capture(input.sessionID, directory)
-            return catalog.state(input.sessionID)
+            const current = await metadataCatalog()
+            const state = current?.state(input.sessionID) ?? { catalogID: null, revision: 0, workspaces: [], binding: null }
+            if (input.sessionID) remember(input.sessionID, state.binding)
+            return { ...state, canAttach: await canAttach(input.sessionID, state.binding) }
           } catch (error) {
             const problem = failure(error)
             return call.error("workspace", problem.message, { code: problem.code })
@@ -69,42 +159,26 @@ export default Plugin.define({
         change: async (input, call) => {
           try {
             call.signal.throwIfAborted()
-            await compatible()
             if (input.sessionID) await session(input.sessionID)
-            const binding = input.sessionID ? catalog.state(input.sessionID).binding : null
+            const catalog = await writableCatalog(input.action.kind === "create")
+            const binding = input.sessionID ? catalog.selection(input.sessionID).binding : null
             const bindingChange = input.action.kind === "attach" || input.action.kind === "detach"
-            const empty = bindingChange && input.sessionID && !binding?.sealed ? (await ctx.session.context({ sessionID: input.sessionID })).length === 0 : false
+            const empty = await canAttach(input.sessionID, binding)
             const root = input.action.kind === "addRoot" ? await canonicalDirectory(input.action.path, directory) : undefined
             call.signal.throwIfAborted()
-            await compatible()
-            const result = catalog.change(input, directory, empty, root)
+            // No await separates this admission check from the SQLite commit.
+            // A context/tool hook marks started synchronously at entry: either
+            // attach commits first or that request permanently rejects attach.
+            const admitted = empty && !admissionFull && !!input.sessionID && !started.has(input.sessionID)
+            const result = catalog.change(input, directory, admitted, root)
+            if (input.sessionID) {
+              if (input.action.kind === "detach" && !result.binding?.workspace) knownActive.delete(input.sessionID)
+              remember(input.sessionID, result.binding)
+            }
             // Notification failure cannot change a committed result. Other
             // clients also reconcile through cheap authoritative selection reads.
             try { await rpc.events.emit("changed", { catalogID: result.catalogID, revision: result.revision, ...(bindingChange && input.sessionID ? { sessionID: input.sessionID } : {}) }) } catch {}
-            return result
-          } catch (error) {
-            const problem = failure(error)
-            return call.error("workspace", problem.message, { code: problem.code })
-          }
-        },
-        legacyPreview: async (input, call) => {
-          try {
-            await compatible()
-            return await previewLegacy(input.path, directory, call.signal)
-          } catch (error) {
-            const problem = failure(error)
-            return call.error("workspace", problem.message, { code: problem.code })
-          }
-        },
-        importLegacy: async (input, call) => {
-          try {
-            await compatible()
-            const result = await importLegacy(catalog, input, directory, call.signal)
-            try {
-              const meta = catalog.state()
-              await rpc.events.emit("changed", { catalogID: meta.catalogID, revision: meta.revision })
-            } catch {}
-            return result
+            return { ...result, canAttach: admitted && !result.binding?.sealed && !admissionFull && !!input.sessionID && !started.has(input.sessionID) }
           } catch (error) {
             const problem = failure(error)
             return call.error("workspace", problem.message, { code: problem.code })
@@ -125,14 +199,17 @@ export default Plugin.define({
         },
       })
       await ctx.session.hook("context", async (event) => {
-        await session(event.sessionID)
-        // The SQLite transaction seals selection before the model can generate
-        // tools. Concurrent attach either commits first or is rejected as sealed.
-        const binding = catalog.capture(event.sessionID, directory)
-        if (!binding.workspace) {
-          event.system.push({ type: "text", text: "No plugin workspace is selected in this session. Workspace selections are explicit and do not inherit from parents/forks. Ordinary OpenCode behavior and permissions are unchanged. Open a new workspace session through /workspace when needed." })
+        requestStarted(event.sessionID)
+        const resolved = await resolve(event.sessionID)
+        if (resolved.mode !== "active") {
+          for (const name of helperTools) delete event.tools[name]
+          if (resolved.mode === "unavailable" && knownActive.has(event.sessionID)) throw resolved.error
           return
         }
+        await session(event.sessionID)
+        const catalog = await writableCatalog(false)
+        const binding = catalog.capture(event.sessionID, directory)
+        if (!binding?.workspace) throw new WorkspaceError("BINDING_UNAVAILABLE", "The active workspace binding disappeared; restore its catalog before continuing")
         let delivery = deliveries.get(event.sessionID)
         if (!delivery) {
           delivery = instructionDelivery(binding.workspace.roots, async (source) => {
@@ -159,12 +236,22 @@ export default Plugin.define({
         }
         event.system.push({ type: "text", text: `Workspace ${JSON.stringify(binding.workspace.name)}, pinned revision ${binding.workspace.revision}. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.\n${instructionBlock(snapshot)}` })
       })
-      await ctx.session.hook("compaction", (event) => { deliveries.get(event.sessionID)?.invalidate(); instructionStates.delete(event.sessionID) })
+      await ctx.session.hook("compaction", (event) => {
+        requestStarted(event.sessionID)
+        deliveries.get(event.sessionID)?.invalidate()
+        instructionStates.delete(event.sessionID)
+      })
       await ctx.tool.hook("execute.before", async (event) => {
+        requestStarted(event.sessionID)
         if (!["read", "edit", "write", "patch", "shell", "glob", "grep"].includes(event.tool)) return
-        const bound = catalog.state(event.sessionID).binding?.workspace
-        if (!bound) return
         try {
+          const resolved = await resolve(event.sessionID)
+          if (resolved.mode === "passive") return
+          if (resolved.mode === "unavailable") {
+            if (knownActive.has(event.sessionID)) throw resolved.error
+            return
+          }
+          const bound = resolved.binding.workspace
           await session(event.sessionID)
           const input = event.input as { path?: unknown; patchText?: unknown; workdir?: unknown }
           if (event.tool === "glob" || event.tool === "grep") {
@@ -193,7 +280,7 @@ export default Plugin.define({
         }
       })
       await ctx.permission.hook("evaluate", (event) => {
-        if (event.action === "workspace_escape" && event.metadata?.workspaceManager === true && event.effect !== "deny") event.effect = "ask"
+        if (knownActive.has(event.sessionID) && event.action === "workspace_escape" && event.metadata?.workspaceManager === true && event.effect !== "deny") event.effect = "ask"
       })
       await ctx.tool.transform((editor) => {
         for (const kind of ["glob", "grep"] as const) {
@@ -208,11 +295,9 @@ export default Plugin.define({
             input: z.toJSONSchema(Search), options: { codemode: false },
             execute: async (raw, context) => {
               context.signal.throwIfAborted()
-              await session(context.sessionID)
+              const { workspace: binding } = await workspaceBinding(context.sessionID)
               const parsed = Search.safeParse(raw)
               if (!parsed.success) throw new ToolError({ message: "INVALID_PATTERN: invalid workspace search arguments" })
-              const binding = catalog.selection(context.sessionID).binding?.workspace
-              if (!binding) throw new ToolError({ message: "NO_WORKSPACE: select a workspace in a new session through /workspace" })
               const source = { type: "tool" as const, messageID: context.messageID, id: context.id }
               try {
                 const result = await searchWorkspace(binding.roots, { kind, pattern: parsed.data.pattern, alias: parsed.data.alias, exclude: parsed.data.exclude, include: typeof parsed.data.include === "string" ? parsed.data.include : undefined }, {
@@ -232,9 +317,9 @@ export default Plugin.define({
           name: "workspace_status", description: "Show this session's explicit pinned workspace selection. No global active selection; saved-definition edits do not retarget running sessions.",
           input: { type: "object", properties: {}, additionalProperties: false }, options: { codemode: false },
           execute: async (_input, context) => {
-            await session(context.sessionID)
-            const binding = catalog.state(context.sessionID).binding
-            return { content: JSON.stringify(binding ?? { workspace: null, sealed: false, directory }) }
+            context.signal.throwIfAborted()
+            const binding = await workspaceBinding(context.sessionID)
+            return { content: JSON.stringify(binding) }
           },
         })
         const Resolve = z.object({ path: z.string().min(1) }).strict()
@@ -242,10 +327,9 @@ export default Plugin.define({
           name: "workspace_resolve", description: "Resolve alias:/relative/path to a canonical absolute native-tool path in this session. Prepares scoped instructions for the next model request; never reads file contents or changes files.",
           input: z.toJSONSchema(Resolve), options: { codemode: false },
           execute: async (raw, context) => {
-            await session(context.sessionID)
+            context.signal.throwIfAborted()
+            const { workspace: binding } = await workspaceBinding(context.sessionID)
             const input = Resolve.parse(raw)
-            const binding = catalog.state(context.sessionID).binding?.workspace
-            if (!binding) throw new ToolError({ message: "NO_WORKSPACE: select a workspace in a new session through /workspace" })
             const prefix = /^([a-z0-9_-]+):\/(.*)$/s.exec(input.path)
             const root = prefix ? binding.roots.find((root) => root.alias === prefix[1]) : undefined
             if (!root || !prefix || prefix[2]!.startsWith("/") || /^[a-z]:/i.test(prefix[2]!)) throw new ToolError({ message: "INVALID_PATH: use a registered alias:/relative/path" })
@@ -261,7 +345,16 @@ export default Plugin.define({
           },
         })
       })
-    } catch (error) { catalog.close(); throw error }
-    return () => { deliveries.clear(); instructionStates.clear(); catalog.close() }
+    } catch (error) { disposed = true; catalog?.close(); reader?.close(); throw error }
+    return () => {
+      disposed = true
+      deliveries.clear()
+      instructionStates.clear()
+      knownActive.clear()
+      inactive.clear()
+      started.clear()
+      catalog?.close()
+      reader?.close()
+    }
   },
 })

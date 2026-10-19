@@ -11,20 +11,10 @@ export const Workspace = z.object({ id: z.uuid(), name: Name, revision: z.number
 export type Workspace = z.infer<typeof Workspace>
 export const Binding = z.object({ workspace: Workspace.nullable(), sealed: z.boolean(), directory: z.string() }).strict()
 export type Binding = z.infer<typeof Binding>
-export const State = z.object({ catalogID: z.uuid(), revision: z.number().int().nonnegative(), workspaces: z.array(Workspace), binding: Binding.nullable() }).strict()
+export const State = z.object({ catalogID: z.uuid().nullable(), revision: z.number().int().nonnegative(), workspaces: z.array(Workspace), binding: Binding.nullable(), canAttach: z.boolean() }).strict()
 export type State = z.infer<typeof State>
-export const LegacyPreview = z.object({
-  sourcePath: z.string(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/), active: z.string().nullable(),
-  workspaces: z.array(z.object({ name: Name, rootCount: z.number().int().min(0).max(20) }).strict()).max(1000),
-}).strict()
-export const LegacyImportResult = z.object({
-  sourcePath: z.string(), backupPath: z.string(),
-  imported: z.array(z.object({ id: z.uuid(), name: Name }).strict()).max(1000),
-  suggestedWorkspaceID: z.uuid().nullable(),
-}).strict()
-export type LegacyImportResult = z.infer<typeof LegacyImportResult>
 export const Selection = z.object({
-  catalogID: z.uuid(), revision: z.number().int().nonnegative(),
+  catalogID: z.uuid().nullable(), revision: z.number().int().nonnegative(),
   workspace: z.object({ id: z.uuid(), name: Name, revision: z.number().int().positive(), rootCount: z.number().int().min(0).max(20) }).strict().nullable(),
   sealed: z.boolean(), instructions: z.enum(["not-loaded", "ready", "blocked"]),
 }).strict()

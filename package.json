@@ -8,7 +8,6 @@
   "type": "module",
   "engines": { "bun": ">=1.4.3" },
   "packageManager": "bun@1.4.3",
-  "workspaces": [".opencode"],
   "peerDependencies": {
     "@opentui/core": "0.5.17",
     "@opentui/solid": "0.5.17",
@@ -22,7 +21,6 @@
     "pack": "bun run scripts/pack.ts",
     "bun-typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:opencode": "bun run tests/opencode-smoke.ts",
     "test:capabilities": "bun run tests/opencode-capabilities.ts",
     "test:capabilities:tui": "bun run tests/opencode-capabilities.ts --tui",
     "test:capabilities:instructions": "bun run tests/opencode-instruction-capabilities.ts",
@@ -39,7 +37,6 @@
     "@opentui/core": "0.5.17",
     "@opentui/solid": "0.5.17",
     "@types/bun": "1.4.3",
-    "@vscode/ripgrep": "1.18.0",
     "@xterm/headless": "5.5.0",
     "effect": "4.0.1",
     "solid-js": "1.9.15",

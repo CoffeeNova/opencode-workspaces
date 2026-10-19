@@ -9,8 +9,7 @@ the detailed development contract lives in the documents linked below.
    product, architecture, implementation phases, and acceptance criteria. Read
    this before implementation; do not treat it as a list of completed features.
 2. [README](README.md) — the current implementation, installation, security
-   behavior, and verification commands. Its first section describes the working
-   development package; the later legacy section describes `.opencode/`.
+   behavior, and verification commands for the current plugin package.
 3. The relevant source and tests below. Check the actual tree and Git status
    before editing. Follow the plan's Section 0 revision before the older phase order.
 
@@ -42,17 +41,14 @@ conflict or unsupported host capability rather than silently changing the goal.
 | [src/tui/indicator.ts](src/tui/indicator.ts) | Session-aware footer label, metadata reconciliation, and UI-runtime integration |
 | [src/infrastructure/](src/infrastructure/), [src/instructions/](src/instructions/) | Transactional catalog, server paths/browser, and scoped instruction delivery |
 | [scripts/check-workspaces.ts](scripts/check-workspaces.ts) | End-to-end check of the actual package after implementation; real private TUI and native development |
-| [.opencode/plugins/workspace-manager.ts](.opencode/plugins/workspace-manager.ts) | Current server plugin: registry, paths, tools, permissions, and context hooks |
-| [.opencode/plugins/workspace-manager-notifications/](.opencode/plugins/workspace-manager-notifications/) | Existing notification-only server/TUI package and RPC contract |
-| [.opencode/commands/](.opencode/commands/) | Existing prompt-driven slash commands; not the desired UI implementation |
-| [tests/workspace-manager.test.ts](tests/workspace-manager.test.ts) | Registry, tools, filesystem/security, and host-adapter regression coverage |
-| [tests/notifications.test.ts](tests/notifications.test.ts) | Current toast routing and listener cleanup tests |
-| [tests/opencode-smoke.ts](tests/opencode-smoke.ts) | Opt-in real OpenCode loader smoke check |
+| [tests/catalog.test.ts](tests/catalog.test.ts), [tests/workspaces.test.ts](tests/workspaces.test.ts), [tests/workspace-tui.test.ts](tests/workspace-tui.test.ts) | Current storage, opt-in server hooks/admission, and deterministic TUI regressions without OpenCode |
+| [tests/helpers/workspace-server.ts](tests/helpers/workspace-server.ts) | Actual production server with mocked native host APIs and isolated SQLite fixtures; no replacement workspace service |
+| [tests/filesystem.test.ts](tests/filesystem.test.ts) | Current filesystem/security, search, and documented PowerShell-command regression coverage |
 | [tests/opencode-capabilities.ts](tests/opencode-capabilities.ts), [tests/fixtures/phase-zero-plugin/](tests/fixtures/phase-zero-plugin/) | Isolated Phase-zero server/TUI/RPC and native-tool proof; not production entrypoints |
 | [tests/boundary-probe.test.ts](tests/boundary-probe.test.ts) | Throwaway boundary protocol: snapshots, revisions, all-session checks, and scoped cancellation |
 | [tests/opencode-tui-capabilities.ts](tests/opencode-tui-capabilities.ts), [tests/helpers/tui-capability.ts](tests/helpers/tui-capability.ts) | Provider-disabled real TUI checks: drafts, session routing, dialogs, source reload, and listener cleanup; not production administration |
 | [tests/opencode-instruction-capabilities.ts](tests/opencode-instruction-capabilities.ts), [tests/instructions-probe.test.ts](tests/instructions-probe.test.ts) | Fixed-root scoped instruction delivery, generating-request fingerprints, native mutation rejection, and byte-budget negative cases; not production bindings or a complete instruction service |
-| [package.json](package.json), [.opencode/package.json](.opencode/package.json), [tsconfig.json](tsconfig.json), [bun.lock](bun.lock) | Dependencies, scripts, TypeScript configuration, and dependency lock |
+| [package.json](package.json), [tsconfig.json](tsconfig.json), [bun.lock](bun.lock) | Dependencies, scripts, TypeScript configuration, and dependency lock |
 
 ## Working rules
 
@@ -66,6 +62,8 @@ conflict or unsupported host capability rather than silently changing the goal.
 - Preserve existing storage and security guarantees while refactoring. Revise
   tests that encode superseded product behavior deliberately, not merely to make
   failures disappear.
+- Support only the current SQLite format. Earlier unreleased plugins, JSON import,
+  schema upgrades, and old-path fallback have been retired; do not reintroduce them.
 - Keep changes within the requested task. A plan is not authorization to execute
   every phase. Preserve unrelated user work; do not commit unless asked.
 - Use isolated fixtures and registries. Do not edit real user registries/global
@@ -75,23 +73,28 @@ conflict or unsupported host capability rather than silently changing the goal.
 
 ## Verification
 
-For code changes, run from the repository root:
+Production-only checks from the repository root do not execute tests or OpenCode:
+
+```powershell
+bun run typecheck
+bun run build
+bun run pack
+```
+
+The user approved related automated unit/adapter test updates, execution, and
+full typechecking after reviewing the implementation. Use isolated fixtures:
 
 ```powershell
 bun run bun-typecheck
 bun test
 ```
 
-For relevant loader/integration changes, also run the opt-in check when the
-installed OpenCode runtime is available:
+OpenCode, acceptance-harness, loader smoke, and live capability checks still
+require separate approval. Do not run `bun run check:workspaces` or the runtime
+commands below under the automated-only approval.
 
-```powershell
-bun run test:opencode
-```
-
-The loader smoke check is not proof that TUI interaction, instruction delivery,
+Build/package success is not proof that TUI interaction, instruction delivery,
 or cross-root development works. Use the plan's corresponding acceptance tests.
-Actual package acceptance: `bun run check:workspaces`.
 Historical Phase-zero probes: `bun run test:capabilities` and `bun run test:capabilities:tui`.
 Instruction-only iteration: `bun run test:capabilities:instructions` (scripted provider).
 UI-only iteration: `bun run tests/opencode-tui-capabilities.ts --keep` (disabled provider).

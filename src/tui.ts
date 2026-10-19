@@ -36,7 +36,7 @@ export default Plugin.define({
       }
       const options = { location: selected.location, signal: lifetime.signal }
       let state!: State
-      async function refresh() { state = await rpc.state(selected.sessionID ? { sessionID: selected.sessionID } : {}, options); indicator.refresh(); return valid() }
+      async function refresh() { state = await rpc.state(selected.sessionID ? { sessionID: selected.sessionID } : {}, options); return valid() }
       async function change(action: Action, sessionID = selected.sessionID) {
         if (!valid()) return false
         state = await rpc.change({ requestID: crypto.randomUUID(), expectedRevision: state.revision, ...(sessionID ? { sessionID } : {}), action }, options)
@@ -62,14 +62,20 @@ export default Plugin.define({
         // Explicit user action only. Keep a session if attach times out: it may
         // already be committed, and reopening must reconcile rather than retry.
         const created = await context.client.session.create({ location: selected.location, title: `Workspace: ${workspace.name}` }, { signal: lifetime.signal })
-        await change({ kind: "attach", workspaceID: workspace.id }, created.id)
+        if (!await change({ kind: "attach", workspaceID: workspace.id }, created.id)) return
+        if (state.binding?.workspace?.id !== workspace.id) throw new Error("The created session's binding was not confirmed; reopen /workspace to reconcile")
+        if (valid()) context.ui.router.navigate({ type: "session", sessionID: created.id })
+      }
+      async function openOrdinary() {
+        if (!valid()) return
+        const created = await context.client.session.create({ location: selected.location }, { signal: lifetime.signal })
         if (valid()) context.ui.router.navigate({ type: "session", sessionID: created.id })
       }
       async function attach(workspace: Workspace) {
         if (!valid()) return
-        const message = state.binding?.sealed ? "This session has started. Its roots stay fixed; open the saved workspace in a new empty session." : "Select this workspace here, or open it in a new empty session. No prompt will be sent."
+        const message = selected.sessionID && !state.canAttach ? "This session has started or cannot be safely attached. Its context stays unchanged; open the saved workspace in a new empty session." : "Explicitly select this workspace in an empty session. No prompt will be sent."
         const action = await context.ui.dialog.select({ title: workspace.name, placeholder: message, options: [
-          ...(selected.sessionID && !state.binding?.sealed ? [{ title: "Use in this empty session", value: "here" }] : []),
+          ...(selected.sessionID && state.canAttach ? [{ title: "Use in this empty session", value: "here" }] : []),
           { title: "Open in new session", value: "new" },
         ] })
         if (!valid() || !action) return
@@ -118,12 +124,12 @@ export default Plugin.define({
             const updated = state.workspaces.find((item) => item.id === workspace.id)!
             if (selected.sessionID && state.binding?.workspace?.id === workspace.id) {
               const next = await context.ui.dialog.select({ title: "Folder saved", placeholder: "Existing session roots are unchanged until you explicitly apply the saved definition.", options: [
-                { title: state.binding.sealed ? "Open updated workspace in new session" : "Use updated folders in this empty session", value: "apply" },
+                { title: state.canAttach ? "Use updated folders in this empty session" : "Open updated workspace in new session", value: "apply" },
                 { title: "Keep current session unchanged", value: "keep" },
               ] })
               if (!valid() || next !== "apply") return
-              if (state.binding.sealed) await openNew(updated)
-              else await change({ kind: "attach", workspaceID: updated.id })
+              if (state.canAttach) await change({ kind: "attach", workspaceID: updated.id })
+              else await openNew(updated)
             }
             return
           } else current = picked
@@ -136,15 +142,14 @@ export default Plugin.define({
         while (valid()) {
           if (!await refresh()) return
           const active = state.binding?.workspace
-          const selectedAction = await context.ui.dialog.select({ title: `Workspace · ${active?.name ?? "none selected"}`, placeholder: active ? `${active.roots.length} folders${state.binding?.sealed ? " · fixed for this session" : ""}` : "Create or choose a workspace. Session selections are independent.", options: [
+          const selectedAction = await context.ui.dialog.select({ title: `Workspace · ${active?.name ?? "none selected"}`, placeholder: active ? `${active.roots.length} folders${!state.canAttach ? " · fixed for this session" : ""}` : "Manage saved definitions; only explicit selection activates a workspace.", options: [
             ...(state.workspaces.length ? [{ title: "Switch / open workspace", value: "switch" }] : []),
             { title: "Create workspace", value: "create" },
             ...(state.workspaces.length ? [{ title: "Add folder to saved workspace", value: "add" }] : []),
             ...(state.workspaces.some((workspace) => workspace.roots.length) ? [{ title: "Remove folder registration", value: "root" }] : []),
             { title: "Show status", value: "status" },
-            ...(active && !state.binding?.sealed ? [{ title: "Detach from this empty session", value: "detach" }] : []),
+            ...(active ? [{ title: state.canAttach ? "Detach from this empty session" : "Open new ordinary session (detach)", value: "detach" }] : []),
             ...(state.workspaces.length ? [{ title: "Delete saved definition", value: "delete", category: "Saved definitions" }] : []),
-            { title: "Import legacy registry", value: "import", category: "Saved definitions" },
           ] })
           if (!valid() || !selectedAction) return
           if (selectedAction === "create") {
@@ -160,31 +165,17 @@ export default Plugin.define({
               if (valid() && next === "add") await add(created)
               else if (valid() && next === "attach") await attach(created)
             }
-          } else if (selectedAction === "import") {
-            const entered = await context.ui.dialog.prompt({ title: "Legacy registry path", description: "Server-side v1 workspaces.json. The source is retained; no sessions are selected automatically." })
-            if (!valid() || entered === undefined) continue
-            const preview = await rpc.legacyPreview({ path: entered }, options)
-            if (!valid()) return
-            const confirmed = await context.ui.dialog.confirm({ title: "Confirm legacy import", message: `Import ${preview.workspaces.length} saved workspaces from:\n${preview.sourcePath}\n\nA verified backup is created beside the JSON before committing. Existing definitions are never overwritten. Registered AGENTS.md files may guide future workspace requests; this is not tool approval. No session selection changes.\nFormer active: ${preview.active ?? "none"}` })
-            if (!valid() || !confirmed) continue
-            const result = await rpc.importLegacy({ path: preview.sourcePath, fingerprint: preview.fingerprint, expectedRevision: state.revision }, options)
-            if (!await refresh()) return
-            const suggested = state.workspaces.find((workspace) => workspace.id === result.suggestedWorkspaceID)
-            if (suggested) {
-              const next = await context.ui.dialog.select({ title: "Legacy import complete", placeholder: `Backup: ${result.backupPath}`, options: [
-                { title: "Keep current session unchanged", value: "done" },
-                { title: `Review former active: ${suggested.name}`, value: "review" },
-              ] })
-              if (valid() && next === "review") await attach(suggested)
-            } else await context.ui.dialog.alert({ title: "Legacy import complete", message: `${result.imported.length} definitions imported. No session selections changed.\nBackup: ${result.backupPath}` })
           } else if (selectedAction === "status") {
             const selection = selected.sessionID ? await rpc.selection({ sessionID: selected.sessionID }, options) : undefined
             if (!valid()) return
             const instructions = selection?.instructions === "ready" ? "Ready at the last model request." : selection?.instructions === "blocked" ? "Blocked at the last request; check source/budget or permission errors." : "Not loaded yet; the next request uses session permissions."
             const saved = currentDefinition()
             const update = active && saved && saved.revision !== active.revision ? `\nSaved definition is revision ${saved.revision}; this session retains revision ${active.revision}.` : active && !saved ? "\nSaved definition was deleted; this session retains its pinned folders." : ""
-            await context.ui.dialog.alert({ title: "Workspace status", message: active ? `${active.name} · pinned revision ${active.revision}\n${active.roots.map((root) => `${root.alias}:/ → ${root.path}`).join("\n") || "No folders"}\n\n${state.binding?.sealed ? "Selection is fixed. Switch or apply saved changes in a new session." : "Saved changes can be applied before starting work."}${update}\nInstructions: ${instructions}` : "No workspace selected. Create or choose a saved workspace; opening this menu never creates a session." })
-          } else if (selectedAction === "detach") await change({ kind: "detach" })
+            await context.ui.dialog.alert({ title: "Workspace status", message: active ? `${active.name} · pinned revision ${active.revision}\n${active.roots.map((root) => `${root.alias}:/ → ${root.path}`).join("\n") || "No folders"}\n\n${!state.canAttach ? "Selection is fixed. Switch or apply saved changes in a new session." : "Saved changes can be applied before starting work."}${update}\nInstructions: ${instructions}` : "No workspace selected. Native OpenCode behavior remains unchanged. Creating or editing a saved definition does not activate it; explicitly select one in an empty or new session." })
+          } else if (selectedAction === "detach") {
+            if (state.canAttach) await change({ kind: "detach" })
+            else await openOrdinary()
+          }
           else {
             const workspace = selectedAction === "add" ? currentDefinition() ?? await choose()
               : selectedAction === "root" ? (currentDefinition()?.roots.length ? currentDefinition() : await choose(true))

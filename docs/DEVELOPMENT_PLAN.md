@@ -1,22 +1,37 @@
 # Multi-root Workspace Plugin: Development Plan and Contract
 
-Status: first-release implementation ready for user review; fresh tests await approval.
+Status: implementation reviewed; automated regressions passed; live runtime acceptance awaits approval.
 Research date: 2026-10-18.
 Target: OpenCode V2 terminal UI, Windows-first, with a server-side workspace service.
 
 Implementation tracking: [Phase-zero capability evidence and open gates](PHASE_ZERO_FINDINGS.md).
 Phase-zero research is concluded for the reduced first-release scope below.
 The original inheritance/metadata gates did not pass and are not being relabelled
-as supported. The legacy plugin and registry remain available during development.
+as supported. Earlier unreleased workspace implementations have been retired.
 **Current implementation phase: Phase 6 - release implementation ready; acceptance paused.**
 The working cross-root edit/test/Git slice, Phase 3 core UI/indicator, and bounded
 multi-root search adapters are verified. Phase 6 was started explicitly on
-2026-10-19; non-destructive v1 import/backup is now implemented and checked in the
-real TUI. Default catalog storage, compiled exports, standalone archive, and a
+2026-10-19. Default catalog storage, compiled exports, standalone archive, and a
 neutral-folder launch command are now implemented. On 2026-10-19 the user requested
 completion without touching tests until approval; post-packaging runtime acceptance
 and test work are paused, not relabelled passed. Remaining limitations are tracked in the current
 [handoff](PHASE_ZERO_HANDOFF.md#current-decision-and-implementation).
+The later [opt-in workspaces plan](OPT_IN_WORKSPACES_PLAN.md) changes passive-session,
+indicator, and primary-installation behavior only; its production implementation
+has been reviewed; automated testing is now approved separately from live runtime acceptance.
+On 2026-10-19 the user reported successful manual testing and requested two
+follow-ups: retain only `/workspace` and use LocalAppData for new Windows catalogs.
+Those requests supersede the opt-in plan's plural-command/alias and old Windows
+default-path requirements; other contracts and test restrictions remain in force.
+The user then requested removing support for earlier unreleased versions. JSON
+import, schema-1 upgrade, old Windows path fallback, legacy plugin/commands, and
+launcher-registration repair are removed. The user explicitly approved deleting
+obsolete legacy tests and related harness sections, without executing tests or
+OpenCode. Existing current-format catalogs, bindings, and identifiers are retained.
+After reviewing that implementation, the user explicitly approved updating and
+running related automated tests without OpenCode. This supersedes the earlier
+test-work hold for unit/adapter regressions and full typechecking only; runtime
+acceptance, smoke checks, capability scripts, and real data/configuration remain excluded.
 
 ## 0. Implementation decision after capability research
 
@@ -31,11 +46,14 @@ future target, not a prerequisite for starting implementation.
 - **No automatic child/fork inheritance.** New sessions have no plugin binding.
   Select a workspace explicitly before starting work. A fork with copied history
   is not an empty session and cannot be retroactively attached in this release.
-- **Seal selection at first request.** Binding/root changes are allowed only before
-  the first model request and only in an empty session. Context capture seals even
-  an unbound session atomically in plugin storage. Switch/detach after work starts
-  offers an explicitly created new session; it does not retarget the running one.
-  This avoids depending on an atomic host idle-check-and-update API.
+- **Opt-in activation and first-request admission.** `/workspace` is the only
+  management-menu command; there is no plural alias. Opening/cancelling administration,
+  definition edits, and ordinary requests never select a workspace or persistently
+  seal an unbound session. Attachment requires an empty native session and a final
+  synchronous admission check before the SQLite transaction. Context/tool/compaction
+  hooks mark request start before awaiting anything; bound capture still seals
+  persisted active selections. Switch/detach after work starts creates a new session,
+  not a reinterpretation of existing history. No atomic host idle/attach API is claimed.
 - **Pinned root snapshots.** A binding contains the selected definition's name,
   revision, and roots. Editing/deleting a saved definition does not change existing
   sessions. Apply saved changes before work starts or open a new session. Instruction
@@ -44,11 +62,15 @@ future target, not a prerequisite for starting implementation.
   and automatic catalog moves are deferred. A bound session moved to another Location
   is rejected rather than silently rebased.
 - **Single-store SQLite catalog.** Use Bun's supported SQLite API for transactional
-  definitions, bindings, request receipts, and sealing. The catalog defaults to
-  `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`, with an optional
-  explicit `.sqlite` override. V1 import is an explicit,
-  non-destructive read/backup into this separate catalog; it never rewrites the JSON.
-  Source JSON and foreign SQLite databases are never used as the default catalog.
+  definitions, bindings, request receipts, and sealing. New Windows catalogs default
+  to `%LOCALAPPDATA%\opencode-workspaces\workspaces-v2.sqlite`, with
+  `~/AppData/Local` as the unset-environment fallback. Other platforms retain
+  `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`. An explicit
+  `.sqlite` override takes precedence. No old Windows path is probed, retained,
+  copied, or merged automatically. Only the current SQLite format is supported;
+  old/future schema versions, JSON registries, and foreign databases are rejected
+  without conversion or overwrite. There is no import or rollback compatibility
+  layer for earlier unreleased implementations.
 - **Honest instruction enforcement.** Reuse the verified scoped-delivery algorithm
   in production modules, with bounded source reads and native-tool preflight. No
   promise of atomic filesystem snapshots, changes during a native permission wait,
@@ -69,9 +91,11 @@ after implementation. Add focused regression cases for real defects, not another
 large throwaway capability suite. The footer indicator is implemented and checked in
 the real TUI. Bounded multi-root search is implemented and verified in the actual
 package; remaining path/schema coverage, instruction budgets, and diagnostics
-remain documented limits or acceptance follow-ups. Phase 6 includes explicit v1
-import, default storage, compiled packaging, and a neutral launcher. Remaining
-runtime acceptance is paused at the user's request; it is not marked passed. If the core
+remain documented limits or acceptance follow-ups. Phase 6 includes default
+storage, compiled packaging, and a neutral launcher. Remaining
+runtime acceptance is paused at the user's request; it is not marked passed. Ordinary
+plugin registration and `opencode` from the chosen working folder are now primary;
+the neutral launcher is an optional development/demo alternative. If the core
 workflow cannot run safely on public APIs, stop and report that development should
 be held.
 
@@ -81,6 +105,61 @@ automatic JSX runtime, with UI/Solid imports external to development bundles so
 the host supplies the runtime instances. The published OpenTUI Solid peer declares
 `1.9.12`, while this OpenCode host pins `1.9.15`; Bun's peer warning is known, not a
 reason to bundle or downgrade the host's Solid runtime.
+
+### 0.1 Opt-in production contract
+
+This scoped revision implements [the opt-in plan](OPT_IN_WORKSPACES_PLAN.md);
+older broad requirements below remain subject to Section 0. The user's subsequent
+single-command, LocalAppData, and current-format-only requests above override
+the corresponding details in that plan.
+
+- Passive session hooks return before instruction/model-budget checks, catalog
+  capture, native-path preflight, or workspace permission work. They contribute no
+  workspace system text. Only this plugin's helper schemas are removed from the
+  per-request tool map; direct helper executors independently require a binding.
+  Helpers retain `codemode: false`. The local SDK exposes no host implementation
+  proving Code Mode inventory ordering; full indirect invisibility remains an
+  explicit acceptance limitation, not a verified guarantee.
+- Catalog discovery is read-only and does not create a missing parent/file, upgrade
+  storage, enumerate definitions per native tool, or read root contents. Menu/status
+  reads do not write bindings. Explicit administrative writes initialize storage
+  single-flight; active capture opens existing storage only. Existing schema,
+  current-format definitions, bindings, revisions, and request receipts are retained.
+- Default-path selection is lazy and cached for the plugin lifetime; it never
+  initializes storage or probes older Windows locations. Explicit `catalogPath`
+  bypasses the default. Relative `LOCALAPPDATA` values fail explicitly, not into the launch cwd.
+  Changing/removing an override does not transfer records between catalogs.
+- Admission retains at most 10,000 started session IDs per Location/plugin lifetime.
+  It never evicts a marker to guess eligibility. Saturation disables further attach,
+  without blocking passive native work or existing active bindings. Native history
+  is checked after reload. The fence is single-server, not a cross-server lock.
+- Binding discovery is session-specific and restores readable persisted bindings.
+  Native history and admission determine menu eligibility without sealing passive
+  rows. Explicit home activation creates/binds a host session before navigation;
+  started conversations offer a new workspace session or a new ordinary session
+  for detach. Children/forks remain unbound.
+- Passive views render no footer node or recurring selection timer. Bounded
+  navigation/reconnect discovery and targeted binding events restore activation;
+  confirmed active views retain reconciliation, backoff, and degraded indicators.
+  Leaving/deleting a session cancels its outstanding indicator work.
+- A known active binding that becomes unavailable fails closed. At startup, an
+  unreadable existing catalog makes undiscovered bindings **unavailable**, not
+  confirmed unbound. The implementation logs that ambiguity but leaves native work
+  enabled for undiscovered sessions rather than blocking every ordinary session.
+  It cannot guarantee safe restoration of an undiscovered formerly bound session
+  during that outage. Restore access and rediscover before continuing it. No
+  second binding store, stale root fallback, or automatic catalog reset is used.
+- Normal installation registers the absolute built `dist` directory once globally
+  or locally. It does not change cwd, provider authentication, native launch-project
+  instructions, or load each root's configuration/plugins. `bun run start` is optional.
+
+Production checks and related automated unit/adapter regression updates/runs are
+authorized, including full typechecking. Current filesystem/search/PowerShell
+cases are preserved independently of the removed plugin, and new cases must
+exercise production modules with isolated fixtures rather than duplicate their
+workspace implementation. No acceptance-harness, loader smoke, live capability
+script, or OpenCode may be run, and no real catalog/global configuration may be
+modified until separately authorized. The future acceptance matrix is not approval.
 
 ### Reading map
 
@@ -140,9 +219,9 @@ tool, and specified `.opencode/commands/workspace.md` with `agent: build`.
 That describes an agent-orchestrated conversation, even when its mockup looks
 like a menu.
 
-Current repository evidence:
+Historical research-baseline evidence from the now-removed implementation:
 
-| Location | Current behavior | Required change |
+| Historical location | Earlier behavior | Replacement requirement |
 | --- | --- | --- |
 | `.opencode/commands/workspace.md:6` | Instructs the model to orchestrate tools and questions | Replace with a TUI command handler |
 | `.opencode/plugins/workspace-manager-notifications/tui.ts:6` | Subscribes to toasts only | Build the actual management UI |
@@ -154,7 +233,8 @@ Current repository evidence:
 | `.opencode/plugins/workspace-manager.ts:1006` | Injects a globally selected mapping | Inject a fresh session-specific workspace snapshot |
 | `tests/notifications.test.ts:5` | Tests a notification-only companion | Replace that product assumption with deterministic UI tests |
 
-These line references describe the research baseline and may move during refactoring.
+These line references describe the research baseline, not existing files or
+supported entrypoints. The earlier implementation and its dedicated tests are removed.
 
 The registry, atomic writes, path validation, ignore handling, and search tests
 are reusable assets. A rewrite must not casually discard their guarantees.
@@ -193,7 +273,8 @@ setting is experimental and disabled by default.
 
 ### 4.1 Required for the first complete release
 
-- Native TUI entry points: `/workspace`, `/workspace-add`, `/workspace-switch`.
+- Native TUI entry points: `/workspace`, `/workspace-add`,
+  `/workspace-switch`.
 - Palette entries for those same handlers, without imposed global shortcuts.
 - Create, select, detach, and delete workspace definitions.
 - Add/remove folders, including non-Git folders and paths containing spaces.
@@ -201,7 +282,7 @@ setting is experimental and disabled by default.
 - Persistent session selection and independent selections in concurrent sessions.
 - Root mapping plus applicable instructions in agent context.
 - Cross-root search, native file edits, and explicit-root shell/Git workflows.
-- Safe migration from the existing registry and a tested installation path.
+- Current-format persistence and a tested ordinary plugin installation path.
 - Observable failures and clear permission handling.
 
 ### 4.2 Not promised by this release
@@ -215,6 +296,7 @@ setting is experimental and disabled by default.
 - An OS sandbox, complete shell-path analysis, or cross-repository undo.
 - Automatic delegation to multiple agents.
 - Remote clone/provisioning or semantic indexing.
+- Compatibility, import, or schema upgrades for earlier unreleased workspace versions.
 
 Native OpenCode snapshots, review diffs, formatting, and LSP remain host features.
 Verify their behavior with external edits; do not advertise workspace-wide support
@@ -283,7 +365,7 @@ User's development request -> OpenCode agent -> native tools + workspace helpers
 ### 6.1 Separation of responsibilities
 
 - **Domain:** validated workspace definitions, bindings, revisions, path ownership.
-- **Storage:** locking, atomic replacement, backups, migration, corruption reporting.
+- **Storage:** SQLite transactions, request receipts, format validation, corruption reporting.
 - **Workspace service:** all operations shared by RPC and compatibility tools.
 - **Instruction service:** discovery, scope resolution, freshness, delivery state.
 - **Host adapters:** session lookup, permissions, hooks, tools, event lifecycle.
@@ -341,8 +423,8 @@ SDK/runtime combination rather than copying version ranges from old examples.
 
 ### 7.1 Logical schema
 
-Use a version-2 registry containing definitions and session bindings. The
-following is a logical example, not an already implemented schema:
+The current SQLite storage version is 2. The following is a conceptual example,
+not its on-disk layout; Section 0's pinned snapshots govern actual bindings:
 
 ```json
 {
@@ -375,57 +457,39 @@ following is a logical example, not an already implemented schema:
 - Root order is stable; no implicit execution root is inferred from array order.
 - There is **no authoritative global `active` field**.
 - Status is computed using the invoking session, never the last TUI that switched.
-- Definitions are shared: editing their roots affects all bound sessions. The UI
-  must explain this; it is different from changing one session's selection.
-- Removing a definition clears its bindings atomically and never removes folders.
+- Definitions are shared, but edits affect future selections, not existing pinned
+  session snapshots. The UI must explain applying saved changes explicitly.
+- Removing a definition retains existing pinned bindings and never removes folders.
 - In-flight request snapshots and instruction fingerprints are runtime state, not
   trusted facts restored from a previous process.
 
-Keep the existing default global registry location for compatibility. Preserve the
-optional project registry override as a separate catalog, with no implicit merge.
+Use the platform defaults in Section 0 or an explicit `options.catalogPath`, with
+no previous-path lookup, implicit import, or merge.
 A session must have one authoritative catalog owner; do not attach it to both.
 Include catalog identity in caches/events. If a session moves to a Location using
 a different catalog, report the mismatch rather than silently importing bindings.
 
-### 7.2 Version-1 migration
+### 7.2 Current-format-only storage
 
-The implemented Phase 6 migration is a non-destructive import into the separate
-SQLite catalog, not an in-place JSON conversion. Stop all writers before import.
+Only the current workspace SQLite application ID and storage version 2 are
+accepted, for both read-only discovery and writable access. Version 1, unknown
+future versions, malformed data, JSON paths, and foreign databases fail explicitly
+without a schema upgrade, reset, or replacement.
 
-1. Read and validate v1 with the existing 4 MiB bound; preview names/root counts
-  and obtain explicit confirmation without changing definitions or selections.
-2. Acquire the same canonical sidecar lock as the legacy writer, reread, and
-  require the approved source fingerprint to match.
-3. Take an exclusively created timestamped backup, sync and verify exact bytes;
-  never overwrite an existing backup. Recheck the source before committing.
-4. Generate stable IDs and commit definitions plus a durable source/fingerprint
-  receipt in one SQLite transaction. Preserve names, aliases, root order, and
-  normalized absolute paths. Do not rewrite the source JSON.
-5. Do **not** assign the old global `active` selection to every session.
-6. Offer the former active workspace as a migration suggestion in the UI. Bind it
-   only after the user selects it for a particular session.
-7. Reuse the receipt on unchanged-source retries and after restart, without
-  duplicating IDs or definitions. Reject a changed already-imported source.
+There is no v1 JSON importer, backup/receipt flow, former-active suggestion,
+sidecar-writer lock, old-path fallback, or legacy plugin/command package. New
+catalogs contain definitions, bindings, metadata, and idempotent change receipts;
+no import table is created. Existing current-format databases may contain an
+unused historical import table; it is neither read nor destructively dropped.
 
-Reject unknown future versions and malformed data without overwriting anything.
-Name conflicts roll back the whole import. Interrupted/failed attempts can leave
-backup files; only the successful receipt's recorded backup is verified. Unknown
-lock owners fail closed rather than being removed speculatively. The sidecar lock
-coordinates cooperating writers, not arbitrary programs or atomic filesystem
-snapshots. JSON member parsing retains the legacy reader's JSON semantics.
+The current filename, application ID, storage version, and plugin/RPC IDs remain
+unchanged so current-format definitions and session bindings remain usable.
+Version suffixes in these identifiers do not promise support for older builds.
+Changing/removing an explicit path override selects a different catalog; it does
+not transfer records. The plugin never moves or merges real catalogs on startup.
 
-Rollback uses the unchanged source JSON with the legacy plugin after disabling
-the new package. Keep the separate SQLite catalog; its schema-1-to-2 upgrade adds
-import receipts transactionally without changing definitions or session bindings.
-Malformed older catalogs are rejected before any schema upgrade.
-An older development build cannot open catalog schema 2. Do not load both plugin
-generations in one Location or let a legacy writer run during import.
-
-Preserve fsync/atomic replacement, lock ownership checks, stale-lock handling,
-canonical storage paths, cancellation, and clean expected errors. Session-binding
-growth needs a bounded maintenance policy; never silently prune live sessions to
-fit the old 4 MB registry limit. Start with explicit maintenance and a clear size
-error, then split storage only through a versioned migration if necessary.
+Preserve canonical storage paths, transactional writes, cancellation, and clean
+expected errors. Session-binding maintenance must not silently prune live sessions.
 
 ## 8. Session isolation and lifecycle
 
@@ -476,7 +540,7 @@ conservative protocol used to detect and reject races before claiming this gate.
 
 | Entry | Handler |
 | --- | --- |
-| `/workspace` | Open the management menu |
+| `/workspace` | Open the management menu without activating a workspace |
 | `/workspace-add` | Open Add Folder for the current binding, or select/create first |
 | `/workspace-switch` | Select a saved workspace for the current session |
 | Palette equivalents | Call the exact same controllers |
@@ -573,7 +637,8 @@ report that a committed mutation failed or cause a duplicate retry.
   slot such as `prompt.footer.status`.
 - The original header placement was a mockup, not proof of a public header API.
   Do not patch host internals to reproduce that exact coordinate.
-- Reflect the displayed session's binding, including no selection and degraded state.
+- Reflect the displayed session's binding and known-active degraded state.
+- No selection means no rendered contribution or recurring timer, not `[ws:none]`.
 - Use semantic theme tokens; support narrow terminals and ellipsized names.
 - No giant metadata blocks, permanent debug counters, or nonfunctional controls.
 - Menus must work with the model/provider disconnected and must leave the
@@ -594,8 +659,8 @@ clean up dialogs, listeners, layers, and pending requests on reload/unload.
 
 ### 10.1 Base context
 
-Before each ordinary model request, build one fresh block from the invoking
-session's workspace snapshot. It contains:
+Before each active workspace model request, build one fresh block from the invoking
+session's workspace snapshot. Passive requests receive no workspace block. It contains:
 
 - Workspace identity/revision and the complete root mapping.
 - Canonical absolute paths and aliases for display/search disambiguation.
@@ -694,8 +759,9 @@ or replace permission scanning with an ad-hoc shell parser.
   scoped, observable delivery plus covered-tool preflight, not obedience proof.
 - OpenCode combines native instructions and does not resolve their conflicts.
   Retain native global/Location instructions; do not silently remove them.
-  Explain that launch-project guidance still exists, and recommend a neutral
-  launcher Location when it would be inappropriate for the chosen repositories.
+  Explain that launch-project guidance still exists. Normal plugin installation
+  keeps the user's chosen directory; a neutral launcher is an optional alternative
+  when that project's guidance would be inappropriate for the selected repositories.
 - Within our scoped sources, a narrower scope refines its ancestor only for that
   subtree; unresolved contradictions require clarification, not arbitrary last-wins.
 - Use configurable byte/context budgets, with a proposed starting cap of 32 KiB
@@ -756,11 +822,11 @@ make filesystem retargeting atomic.
 - Do not equate search exclusions with access permissions: a direct read of an
   ignored, non-sensitive file can still be an explicitly authorized operation.
 
-The working implementation shares hardened traversal, bounded UTF-8 reading,
-and an isolated JavaScript regex worker with the legacy tools. It allocates fixed
+The working implementation uses hardened traversal, bounded UTF-8 reading,
+and an isolated JavaScript regex worker. It allocates fixed
 per-root shares of 200 paths/100 matching lines, without redistributing unused
-shares. Search order is deterministic traversal, not the legacy glob's newest-first
-ranking. Each root is bounded to 10,000 enumerated entries and 8 MiB of grep input;
+shares. Search order is deterministic traversal.
+Each root is bounded to 10,000 enumerated entries and 8 MiB of grep input;
 grep still skips files over 200 KiB and binary/invalid UTF-8 files. Responses include
 per-root completion/truncation/unavailability plus aggregate partial/truncated flags.
 Configured native read denial and cancellation propagate rather than becoming
@@ -829,15 +895,11 @@ lead to status reconciliation, not blind creation of another workspace.
   Never broadcast file contents, instruction bodies, credentials, or permission replies.
 - Do not expose generic read/write/execute RPC merely to support a folder menu.
 
-Retain useful existing `workspace_*` tools as thin service adapters during
-migration. Their session comes from native tool context, never from model input.
-`workspace_create`/`workspace_switch` change only the caller's binding.
-`workspace_list` can retain a computed `active` name for compatibility, but it
-must clearly be session-derived, not the old on-disk field.
-
-Old exact-schema tests must be revised deliberately for versioned changes.
-Management through natural language may remain possible, but is optional and is
-never the implementation of the TUI menu.
+The current `workspace_status`, `workspace_resolve`, `workspace_glob`, and
+`workspace_grep` helpers use the invoking session from native tool context, never
+model input, and independently reject unbound execution. They are not compatibility
+adapters for an earlier registry or its management tools. Definition and binding
+administration belongs to deterministic TUI/RPC handlers, not model-driven tools.
 
 ## 13. Security and failure behavior
 
@@ -889,9 +951,9 @@ requirement rests on an invented or unverified host capability.
 
 ### Phase 1 — Extract services without weakening behavior
 
-**Status: partial.** New catalog/path/instruction services exist; hardened search
-traversal/read/regex primitives are shared with legacy tools. Full legacy service
-extraction remains unfinished.
+**Status: current services implemented.** Catalog/path/instruction services and
+hardened search traversal/read/regex primitives are independent of the removed
+legacy plugin. Its dedicated tests are retired; shared-module cases are preserved.
 
 - Extract storage, schemas, path policy, browsing, and search from the monolith.
 - Introduce transport-independent service methods and structured domain errors.
@@ -902,11 +964,11 @@ extraction remains unfinished.
 ### Phase 2 — Session bindings and versioned storage
 
 **Status: reduced binding implemented.** SQLite persistence, explicit empty-session
-binding, sealing, pinned roots, and private-server restart are verified. Explicit
-v1 definition import is now implemented in Phase 6. Automatic child/fork inheritance
-remains deferred by Section 0.
+binding, sealing, pinned roots, and private-server restart were verified before
+the opt-in/current-only increments. Earlier schemas/import are unsupported.
+Automatic child/fork inheritance remains deferred by Section 0.
 
-- Implement v2 schema, revisions, stable IDs, migration, and backups.
+- Implement current-format persistence, revisions, stable IDs, and explicit format rejection.
 - Route every existing tool/context path through the invoking session's binding.
 - Add lifecycle, concurrency, same-session/multi-terminal, and restart tests.
 
@@ -915,12 +977,12 @@ remains deferred by Section 0.
 ### Phase 3 — Real management UI
 
 **Status: core flow and footer indicator implemented and exercised in the real TUI.**
-Legacy command retirement and full reconnect/package acceptance remain pending.
+Legacy commands are retired; fresh reconnect/package acceptance remains pending.
 
 - Register the three commands and palette entries using direct handlers.
 - Implement the main menu, creation, switching, folder browser, removal, and status.
 - Add the session indicator and robust event/reconnect handling.
-- Retire conflicting prompt-driven commands in the repository only after parity.
+- Keep obsolete prompt-driven management commands out of the repository/package.
 
 **Exit:** the whole management flow works with no model connection and does not
 create chat messages, consume tokens, or destroy the user's draft input.
@@ -953,23 +1015,27 @@ do not treat search acceptance as completion of every lifecycle/install gate.
 
 **Exit:** an agent can make and verify changes in both repos, not merely read them.
 
-### Phase 6 — Packaging, migration acceptance, and documentation
+### Phase 6 — Packaging, installation acceptance, and documentation
 
-**Status: RELEASE IMPLEMENTATION READY - ACCEPTANCE PAUSED.** V1 import/backup,
-durable receipts, schema upgrade, default catalog storage, compiled server/TUI/RPC
-exports, a standalone tarball, and neutral launcher are implemented. Duplicate
-registration and rollback are documented. Legacy entrypoints are excluded from the
-release archive; source copies remain only for compatibility/rollback. Production
-typecheck/build/pack pass. No test files or harnesses were changed in this completion
-increment, and no tests or OpenCode runtime checks were run. Packaged-install and
+**Status: RELEASE IMPLEMENTATION READY - ACCEPTANCE PAUSED.** Current-format
+request receipts, default catalog storage, compiled server/TUI/RPC
+exports, a standalone tarball, and optional neutral launcher are implemented. The
+opt-in increment adds passive native behavior, explicit `/workspace` activation,
+lazy storage/discovery, active-only indicator reconciliation, guarded helpers, and
+ordinary plugin installation as primary. The single-command/LocalAppData follow-up
+and retirement of earlier unreleased implementations are complete. Duplicate
+registration and unsupported storage formats are documented. Legacy entrypoints,
+import/upgrade/path fallback, and their dedicated tests are removed, with user
+approval for retirement-only test/harness edits. Production-only verification
+covers typecheck/build/pack and static checks, not test or OpenCode execution. Packaged-install and
 remaining lifecycle acceptance await user approval; earlier results are historical.
 
 - Ship one package with server/TUI/RPC exports and one supported install path.
 - Test package installation, not only source-linked development.
 - Remove repository-owned obsolete notification entrypoints after their replacement
   is verified. Do not blindly remove global copies or user-edited files.
-- Document how to prevent global/local duplicate plugin registration and how to
-  roll back storage migration safely.
+- Document how to prevent global/local duplicate plugin registration and report
+  unsupported catalog formats without conversion or data reset.
 - Update README examples to show real UI, per-session selection, instructions,
   native edits, explicit command directories, and honest platform limitations.
 
@@ -979,11 +1045,12 @@ remaining lifecycle acceptance await user approval; earlier results are historic
 
 | Area | Required cases |
 | --- | --- |
+| Opt-in passive mode | No catalog creation/unbound sealing, workspace system text/helper schemas, native-tool policy changes, footer node, or recurring selection poll; menu cancellation/definition edits never activate |
 | No-model UI | Main menu, create, browse, add, switch, remove, status with provider unavailable; no model/prompt APIs called |
 | Input integrity | Existing draft preserved; Escape and dialog replacement; double-click/Enter; stale browser responses |
 | Session isolation | A/B at same Location; same session in two clients; restart; child/fork; no binding; moved session/catalog mismatch |
 | Shared definitions | Definition edit/removal affects only its bound sessions; running sessions and revision conflicts handled |
-| Migration | v1 populated/empty; old active suggestion; interruption; backup collision; corrupt/future schema; concurrent writers |
+| Storage formats | Current-format records/bindings retained; schema 1/future/foreign/corrupt catalogs rejected; no old Windows path lookup; concurrent writers |
 | Paths | Spaces, quotes, slashes, home expansion, drive changes, case, duplicate canonical paths, missing directories, UNC policy |
 | Security | Traversal, alias escape, junction retarget, new-file parent links, sensitive paths, native permission deny, no alternate-tool bypass |
 | Root instructions | Both roots' real content delivered, absent file, unreadable/denied, change/delete, overlap deduplication |
@@ -994,7 +1061,7 @@ remaining lifecycle acceptance await user approval; earlier results are historic
 | Development | Read/edit/write/patch in two external repos; independent tests; explicit workdir; separate Git status; non-Git folder |
 | Host behavior | Permission source fidelity; formatting; review/snapshot/revert limitations; other plugins' context/compaction hooks preserved |
 | Lifecycle | Plugin reload/unload; reconnect; missed event recovery; no listener/layer leaks or duplicate IDs |
-| Installation | Global vs local single registration; packaged export loading; existing registry retained; no system-plugin modifications |
+| Installation | Global vs local single registration; packaged export loading; current catalog retained; no system-plugin modifications |
 
 ### 15.1 Test layers
 
@@ -1007,7 +1074,7 @@ remaining lifecycle acceptance await user approval; earlier results are historic
 5. **Agent acceptance:** a controlled actual request or test provider capturing
    assembled instructions plus a small cross-repo change and test run.
 
-Keep automated fixtures under approved `Temp/opencode` paths. Use `registryPath`
+Keep automated fixtures under approved `Temp/opencode` paths. Use `options.catalogPath`
 to isolate persistence. A smoke test that only lists plugins does not establish
 UI, instruction delivery, external editing, or session isolation correctness.
 
@@ -1041,7 +1108,7 @@ The implementation is complete only when:
 - Per-session selection survives restart and cannot leak through Location globals.
 - Instruction source content is actually delivered with correct scopes and freshness.
 - Cross-repository edits and test execution work under native permissions.
-- Migration, concurrency, cancellation, and degraded states are covered.
+- Current-format persistence/rejection, concurrency, cancellation, and degraded states are covered.
 - README distinguishes verified support from native host limitations.
 
 Reject these shortcuts during review:

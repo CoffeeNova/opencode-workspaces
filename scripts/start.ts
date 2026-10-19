@@ -5,7 +5,6 @@ import { OpenCode } from "@opencode/client"
 import { Service } from "@opencode/client/service"
 
 const root = await fs.realpath(path.resolve(import.meta.dir, ".."))
-const checkoutPackage = root.replaceAll("\\", "/")
 const registeredPackage = path.join(root, "dist").replaceAll("\\", "/")
 let executable = process.env.OPENCODE_BIN || Bun.which("opencode.exe") || Bun.which("opencode")
 if (executable && process.platform === "win32" && /\.(?:cmd|bat|ps1)$/i.test(executable)) {
@@ -28,15 +27,8 @@ try {
   if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
   const config = await Bun.file(configPath).json()
   const configured = (plugin: unknown) => typeof plugin === "string" ? plugin : typeof plugin === "object" && plugin !== null && "package" in plugin ? plugin.package : undefined
-  if (!Array.isArray(config.plugins) || !config.plugins.some((plugin: unknown) => configured(plugin) === registeredPackage || configured(plugin) === checkoutPackage)) {
+  if (!Array.isArray(config.plugins) || !config.plugins.some((plugin: unknown) => configured(plugin) === registeredPackage)) {
     throw new Error(`Existing launcher configuration was not overwritten: ${configPath}. Set OPENCODE_WORKSPACE_LAUNCHER to a different empty folder or configure this package explicitly.`)
-  }
-  if (config.plugins.some((plugin: unknown) => configured(plugin) === checkoutPackage)) {
-    config.plugins = config.plugins.map((plugin: unknown) => configured(plugin) === checkoutPackage ? typeof plugin === "string" ? registeredPackage : { ...plugin as object, package: registeredPackage } : plugin)
-    const temporary = `${configPath}.${crypto.randomUUID()}.tmp`
-    const handle = await fs.open(temporary, "wx", 0o600)
-    try { await handle.writeFile(JSON.stringify(config, null, 2) + "\n"); await handle.sync() } finally { await handle.close() }
-    await fs.rename(temporary, configPath)
   }
 }
 const service = await Service.discover()
@@ -49,6 +41,6 @@ if (service) {
     throw new Error(`The connected OpenCode service has not activated workspace-manager.v2 for ${launcher}. The launcher configuration was retained at ${configPath}; refusing to open a TUI without /workspace.`)
   }
 }
-console.log(`Opening workspace plugin in: ${launcher}`)
+console.log(`Opening optional workspace demo launcher in: ${launcher}. Normal plugin use runs opencode from your chosen project directory.`)
 const command = Bun.spawn([executable, ...Bun.argv.slice(2)], { cwd: launcher, stdin: "inherit", stdout: "inherit", stderr: "inherit" })
 process.exit(await command.exited)
