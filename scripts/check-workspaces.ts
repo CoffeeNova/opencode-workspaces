@@ -22,7 +22,7 @@ try {
   // Test harness exposure only. Original executors, schemas, permissions and IDs
   // remain native; the product does not change native Code Mode exposure.
   const overlay = path.join(product, "direct-tools.js")
-  await fs.writeFile(overlay, `import { Plugin } from "@opencode/plugin"\nexport default Plugin.define({id:"workspace-development.direct-tools",async setup(ctx){await ctx.tool.transform(editor=>{for(const name of ["read","edit","write","patch","shell"])editor.update(name,tool=>{tool.options={...tool.options,codemode:false}})})}})\n`)
+  await fs.writeFile(overlay, `import { Plugin } from "@opencode/plugin"\nexport default Plugin.define({id:"workspace-development.direct-tools",async setup(ctx){await ctx.tool.transform(editor=>{for(const name of ["read","edit","write","patch","shell","glob","grep"])editor.update(name,tool=>{tool.options={...tool.options,codemode:false}})})}})\n`)
   const configFile = path.join(fixture.launch, "opencode.json")
   const config = await Bun.file(configFile).json()
   config.plugins = [{ package: slash(product), options: { catalogPath: slash(path.join(fixture.base, "workspace-catalog.sqlite")) } }, slash(overlay)]
@@ -144,6 +144,158 @@ try {
   assert.equal((await rpc.state({ sessionID }, { location })).binding?.workspace?.roots.length, 3)
   console.log("PASS actual plugin: scoped instructions, two native edits, both test suites/Git, sensitive-path rejection, sealed selection and pinned roots")
   const betaSessionID = sessions.find((session) => session.title === "Indicator session B")!.id
+  const rootA = selected.binding!.workspace!.roots.find((root) => root.path === slash(roots[0]!))!
+  const rootB = selected.binding!.workspace!.roots.find((root) => root.path === slash(roots[1]!))!
+  for (const root of roots) await fs.writeFile(path.join(root, "workspace-search.txt"), "WORKSPACE_SEARCH_VISIBLE\n")
+  await fs.writeFile(path.join(fixture.rootA, "workspace-search-many.txt"), "WORKSPACE_SEARCH_VISIBLE\n".repeat(120))
+  await fs.appendFile(path.join(fixture.rootA, ".gitignore"), "\nworkspace-search-ignored.txt\n")
+  await fs.writeFile(path.join(fixture.rootA, "workspace-search-ignored.txt"), "WORKSPACE_SEARCH_VISIBLE NEVER_PRINT_IGNORED\n")
+  await fs.writeFile(path.join(fixture.rootA, ".env.workspace-search"), "WORKSPACE_SEARCH_VISIBLE NEVER_PRINT_SENSITIVE\n")
+  replies.push([
+    { name: "workspace_glob", input: { pattern: "**/workspace-search*.txt" } },
+    { name: "workspace_grep", input: { pattern: "WORKSPACE_SEARCH_VISIBLE", include: "**/workspace-search*.txt" } },
+    { name: "workspace_grep", input: { pattern: "WORKSPACE_SEARCH_VISIBLE", alias: rootB.alias } },
+    { name: "grep", input: { pattern: "WORKSPACE_SEARCH_VISIBLE", path: slash(fixture.rootA) } },
+  ], [])
+  await host.client.session.prompt({ sessionID, text: "Check bounded search of the pinned workspace, including the root removed from its saved definition." })
+  await host.client.session.wait({ sessionID }, { signal: AbortSignal.timeout(90_000) })
+  const searched = (await host.client.session.context({ sessionID })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : [])
+  const searchTools = searched.filter((tool) => tool.name === "workspace_glob" || tool.name === "workspace_grep")
+  assert.equal(searchTools.length, 3)
+  const outputs = searchTools.map((tool) => {
+    assert.equal(tool.state.status, "completed", JSON.stringify(tool))
+    if (tool.state.status !== "completed") throw new Error("Workspace search failed")
+    const text = tool.state.content.filter((part) => part.type === "text").map((part) => part.text).join("\n")
+    assert.doesNotMatch(text, /NEVER_PRINT_|workspace-search-ignored|\.env\.workspace-search/)
+    return JSON.parse(text)
+  })
+  assert.ok(outputs[0].files.includes(`${rootA.alias}:/workspace-search.txt`))
+  assert.ok(outputs[0].files.includes(`${rootB.alias}:/workspace-search.txt`))
+  assert.equal(outputs[1].roots.find((root: { alias: string }) => root.alias === rootA.alias).status, "truncated")
+  assert.ok(outputs[1].matches.some((match: { file: string }) => match.file === `${rootB.alias}:/workspace-search.txt`))
+  assert.equal(outputs[1].partial, true)
+  assert.deepEqual(outputs[2].matches, [{ file: `${rootB.alias}:/workspace-search.txt`, line: 1, text: "WORKSPACE_SEARCH_VISIBLE" }])
+  assert.ok(searched.some((tool) => tool.name === "grep" && tool.state.status === "error" && tool.state.error.message.includes("USE_WORKSPACE_SEARCH")))
+  replies.push([{ name: "workspace_glob", input: { pattern: "**/workspace-search*.txt" } }], [])
+  await host.client.session.prompt({ sessionID: betaSessionID, text: "Search only this session's empty workspace." })
+  await host.client.session.wait({ sessionID: betaSessionID }, { signal: AbortSignal.timeout(30_000) })
+  const isolated = (await host.client.session.context({ sessionID: betaSessionID })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : []).find((tool) => tool.name === "workspace_glob")
+  assert.equal(isolated?.state.status, "completed", JSON.stringify(isolated))
+  if (isolated?.state.status === "completed") assert.deepEqual(JSON.parse(isolated.state.content.filter((part) => part.type === "text").map((part) => part.text).join("\n")).files, [])
+  assert.equal(replies.length, 0)
+  console.log("PASS actual search: pinned session roots, aliases, ignore/secrets, fair truncation, native guard and independent session isolation")
+  const linkedRoot = path.join(fixture.base, "outside-root-alias")
+  await fs.symlink(fixture.rootA, linkedRoot, process.platform === "win32" ? "junction" : "dir")
+  const linkedFile = slash(path.join(linkedRoot, "src/answer.mjs"))
+  const partialPatchFile = slash(path.join(fixture.rootB, "workspace-search.txt"))
+  const renameSource = slash(path.join(fixture.rootA, "src/answer.mjs"))
+  const pathCases = [
+    { name: "read", input: { path: slash(path.join(linkedRoot, ".env.workspace-search")) }, code: "DENIED_PATH" },
+    { name: "read", input: { path: linkedFile }, code: "OUTSIDE_ROOT" },
+    { name: "edit", input: { path: linkedFile, oldString: "answer = 3", newString: "answer = 99" }, code: "OUTSIDE_ROOT" },
+    { name: "write", input: { path: slash(path.join(linkedRoot, "new/linked-write.txt")), content: "must not be created" }, code: "OUTSIDE_ROOT" },
+    { name: "patch", input: { patchText: `*** Begin Patch\n*** Update File: ${partialPatchFile}\n@@\n-WORKSPACE_SEARCH_VISIBLE\n+PATCH_MUST_NOT_BE_APPLIED\n*** Add File: ${slash(path.join(linkedRoot, "new/linked-patch.txt"))}\n+must not be created\n*** End Patch` }, code: "OUTSIDE_ROOT" },
+    { name: "patch", input: { patchText: `*** Begin Patch\n*** Update File: ${renameSource}\n*** Move to: ${slash(path.join(linkedRoot, "new/linked-move.mjs"))}\n@@\n-export const answer = 3\n+export const answer = 99\n*** End Patch` }, code: "OUTSIDE_ROOT" },
+    { name: "shell", input: { command: `node -e "require('fs').writeFileSync('shell-must-not-run.txt','blocked')"`, workdir: slash(linkedRoot) }, code: "OUTSIDE_ROOT" },
+    { name: "glob", input: { pattern: "**/*", path: slash(linkedRoot) }, code: "USE_WORKSPACE_SEARCH" },
+    { name: "grep", input: { pattern: "WORKSPACE_SEARCH_VISIBLE", path: slash(linkedRoot) }, code: "USE_WORKSPACE_SEARCH" },
+  ]
+  replies.push(pathCases.map(({ name, input }) => ({ name, input })), [])
+  await host.client.session.prompt({ sessionID, text: "Verify native workspace preflight rejects outside linked aliases before any file, patch or shell side effects." })
+  await host.client.session.wait({ sessionID }, { signal: AbortSignal.timeout(60_000) })
+  const pathTools = (await host.client.session.context({ sessionID })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : []).slice(searched.length)
+  assert.equal(pathTools.length, pathCases.length)
+  for (const [index, tool] of pathTools.entries()) {
+    assert.equal(tool.name, pathCases[index]!.name)
+    assert.equal(tool.state.status, "error", JSON.stringify(tool))
+    if (tool.state.status === "error") assert.ok(tool.state.error.message.includes(pathCases[index]!.code), JSON.stringify(tool))
+  }
+  assert.equal(await fs.readFile(renameSource, "utf8"), "export const answer = 3\n")
+  assert.equal(await fs.readFile(partialPatchFile, "utf8"), "WORKSPACE_SEARCH_VISIBLE\n")
+  assert.equal(await fs.exists(path.join(fixture.rootA, "new")), false)
+  assert.equal(await fs.exists(path.join(fixture.rootA, "shell-must-not-run.txt")), false)
+  assert.doesNotMatch(JSON.stringify(requests), /NEVER_PRINT_SENSITIVE/)
+  assert.equal(replies.length, 0)
+  await fs.writeFile(path.join(fixture.base, "working-plugin-path-checks.json"), JSON.stringify(pathTools, null, 2))
+  console.log("PASS actual native paths: outside linked aliases blocked for read/edit/write/patch/rename/shell/glob/grep; no partial mutations")
+  const deniedSearchFile = slash(path.join(fixture.rootB, "workspace-denied.txt"))
+  await fs.writeFile(deniedSearchFile, "needle DO_NOT_DELIVER_DENIED_SEARCH_CONTENT\n")
+  await host.client.session.update({ sessionID, permissions: [
+    { action: "external_directory", resource: "*", effect: "allow" },
+    { action: "read", resource: deniedSearchFile, effect: "deny" },
+  ] })
+  replies.push([{ name: "workspace_grep", input: { pattern: "needle", alias: rootB.alias, include: "workspace-denied.txt" } }], [])
+  await host.client.session.prompt({ sessionID, text: "Verify the configured native read denial is preserved by workspace search." })
+  await host.client.session.wait({ sessionID }, { signal: AbortSignal.timeout(30_000) })
+  const denied = (await host.client.session.context({ sessionID })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : []).at(-1)
+  assert.equal(denied?.name, "workspace_grep")
+  assert.equal(denied?.state.status, "error", JSON.stringify(denied))
+  if (denied?.state.status === "error") assert.equal(denied.state.error.type, "permission.rejected", JSON.stringify(denied))
+  assert.doesNotMatch(JSON.stringify(requests), /DO_NOT_DELIVER_DENIED_SEARCH_CONTENT/)
+  const ordinary = await host.client.session.create({ location, title: "Ordinary session without workspace" })
+  await fs.writeFile(path.join(fixture.launch, "ordinary-search.txt"), "ORDINARY_NATIVE_SEARCH\n")
+  replies.push([
+    { name: "glob", input: { pattern: "ordinary-search.txt", path: location.directory } },
+    { name: "grep", input: { pattern: "ORDINARY_NATIVE_SEARCH", path: location.directory } },
+    { name: "workspace_glob", input: { pattern: "**/*" } },
+  ], [])
+  await host.client.session.prompt({ sessionID: ordinary.id, text: "Verify ordinary native search without a workspace selection." })
+  await host.client.session.wait({ sessionID: ordinary.id }, { signal: AbortSignal.timeout(30_000) })
+  const ordinaryTools = (await host.client.session.context({ sessionID: ordinary.id })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : [])
+  assert.equal(ordinaryTools.length, 3)
+  for (const tool of ordinaryTools.filter((tool) => tool.name === "glob" || tool.name === "grep")) {
+    assert.equal(tool.state.status, "completed", JSON.stringify(tool))
+    if (tool.state.status === "completed") assert.match(JSON.stringify(tool.state.content), /ordinary-search\.txt/)
+  }
+  const unbound = ordinaryTools.find((tool) => tool.name === "workspace_glob")
+  assert.equal(unbound?.state.status, "error")
+  if (unbound?.state.status === "error") assert.match(unbound.state.error.message, /NO_WORKSPACE/)
+  assert.equal(replies.length, 0)
+  console.log("PASS actual search permissions: native read denial propagates; unbound native search is unchanged")
+  const legacySource = slash(path.join(fixture.base, "legacy-workspaces.json"))
+  const legacyBytes = Buffer.from(JSON.stringify({ version: 1, active: "imported-legacy", workspaces: { "imported-legacy": { name: "imported-legacy", createdAt: "2026-10-19", roots: [{ alias: "legacy-docs", path: slash(fixture.plain) }] } } }, null, 2))
+  await fs.writeFile(legacySource, legacyBytes)
+  const beforeImportRequests = requests.length
+  const beforeImportSessions = (await host.client.session.list({ directory: location.directory })).data.length
+  const migrationUI = await openPrivateTui(executable, fixture, host, "workspace-import")
+  try {
+    await migrationUI.until("Ask anything")
+    migrationUI.send("/workspace")
+    await migrationUI.until("Manage workspaces")
+    migrationUI.send("\r")
+    await migrationUI.until("Import legacy registry")
+    migrationUI.send("Import legacy registry\r")
+    await migrationUI.until("Legacy registry path")
+    migrationUI.send(`${legacySource}\r`)
+    await migrationUI.until("Confirm legacy import")
+    migrationUI.snapshot("explicit legacy import preview and confirmation")
+    migrationUI.send("\x1b")
+    await migrationUI.until("Import legacy registry")
+    assert.equal((await rpc.state({}, { location })).workspaces.some((workspace) => workspace.name === "imported-legacy"), false)
+    assert.equal((await fs.readdir(fixture.base)).some((file) => file.startsWith("legacy-workspaces.json.backup-")), false)
+    migrationUI.send("Import legacy registry\r")
+    await migrationUI.until("Legacy registry path")
+    migrationUI.send(`${legacySource}\r`)
+    await migrationUI.until("Confirm legacy import")
+    migrationUI.send("\r")
+    await migrationUI.until("Legacy import complete")
+    await migrationUI.until("Review former active: imported-legacy")
+    migrationUI.snapshot("legacy active is only a suggestion; session selection unchanged")
+    migrationUI.send("\r")
+    await migrationUI.until("Import legacy registry")
+    assert.equal(requests.length, beforeImportRequests)
+    assert.equal((await host.client.session.list({ directory: location.directory })).data.length, beforeImportSessions)
+  } finally { await migrationUI.close() }
+  const preview = await rpc.legacyPreview({ path: legacySource }, { location })
+  const imported = await rpc.importLegacy({ path: legacySource, fingerprint: preview.fingerprint, expectedRevision: 0 }, { location })
+  assert.equal(imported.imported.length, 1)
+  assert.equal(imported.suggestedWorkspaceID, imported.imported[0]!.id)
+  assert.deepEqual(await fs.readFile(legacySource), legacyBytes)
+  assert.deepEqual(await fs.readFile(imported.backupPath), legacyBytes)
+  assert.equal((await rpc.selection({ sessionID }, { location })).workspace?.name, "alpha-demo")
+  assert.equal((await rpc.selection({ sessionID: ordinary.id }, { location })).workspace, null)
+  assert.equal((await fs.readdir(fixture.base)).filter((file) => file.startsWith("legacy-workspaces.json.backup-")).length, 1)
+  console.log("PASS actual legacy import: deterministic UI, exact backup, unchanged source/sessions, active suggestion, idempotent retry")
   await host.client.session.switchModel({ sessionID: betaSessionID, model: { providerID: "workspace-fixture", id: "fixture-small" } })
   const blockedUI = await openPrivateTui(executable, fixture, host, "workspace-blocked", betaSessionID)
   try {
@@ -164,9 +316,10 @@ try {
   assert.equal(restored.binding?.sealed, true)
   assert.equal(restored.binding?.workspace?.roots.length, 3)
   assert.equal(restored.workspaces[0]?.roots.length, 2)
+  assert.deepEqual(await host.client.rpc(WorkspaceRPC).importLegacy({ path: legacySource, fingerprint: preview.fingerprint, expectedRevision: 0 }, { location }), imported)
   console.log("PASS actual catalog and pinned session survive private-server restart")
   await fs.writeFile(path.join(fixture.base, "working-plugin-results.json"), JSON.stringify({ passed: true, implementation: "src/index.ts + src/tui.ts", sessionID, adminProviderRequests: 0, modelRequests: requests.length, restored }, null, 2))
-  await fs.writeFile(path.join(fixture.base, "working-plugin-transcript.json"), JSON.stringify(transcript, null, 2))
+  await fs.writeFile(path.join(fixture.base, "working-plugin-transcript.json"), JSON.stringify(await host.client.session.context({ sessionID }), null, 2))
 } finally {
   if (fixture) await fs.writeFile(path.join(fixture.base, "provider-requests.json"), JSON.stringify(requests, null, 2))
   nativeHold.release.resolve([])

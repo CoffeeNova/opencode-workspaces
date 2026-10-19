@@ -1,8 +1,12 @@
 {
   "name": "opencode-workspaces",
+  "version": "0.1.0",
+  "description": "Session-scoped multi-root workspaces for the OpenCode V2 terminal UI",
   "private": true,
-  "exports": { ".": "./src/index.ts", "./tui": "./src/tui.ts", "./rpc": "./src/rpc.ts" },
+  "exports": { ".": "./dist/index.js", "./tui": "./dist/tui.js", "./rpc": "./dist/rpc.js" },
+  "files": ["dist", "README.md"],
   "type": "module",
+  "engines": { "bun": ">=1.4.3" },
   "packageManager": "bun@1.4.3",
   "workspaces": [".opencode"],
   "peerDependencies": {
@@ -11,6 +15,11 @@
     "solid-js": "1.9.15"
   },
   "scripts": {
+    "build": "bun run scripts/build.ts",
+    "start": "bun run scripts/start.ts",
+    "typecheck": "tsc --project tsconfig.build.json --noEmit",
+    "prepack": "bun run build",
+    "pack": "bun run scripts/pack.ts",
     "bun-typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:opencode": "bun run tests/opencode-smoke.ts",
@@ -19,9 +28,13 @@
     "test:capabilities:instructions": "bun run tests/opencode-instruction-capabilities.ts",
     "check:workspaces": "bun run scripts/check-workspaces.ts"
   },
+  "dependencies": {
+    "@opencode/plugin": "2.0.30",
+    "zod": "4.1.8",
+    "ignore": "7.0.12"
+  },
   "devDependencies": {
     "@opencode/client": "2.0.30",
-    "@opencode/plugin": "2.0.30",
     "@opencode/schema": "2.0.30",
     "@opentui/core": "0.5.17",
     "@opentui/solid": "0.5.17",
@@ -30,7 +43,6 @@
     "@xterm/headless": "5.5.0",
     "effect": "4.0.1",
     "solid-js": "1.9.15",
-    "typescript": "5.8.3",
-    "zod": "4.1.8"
+    "typescript": "5.8.3"
   }
 }

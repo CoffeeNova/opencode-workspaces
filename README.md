@@ -1,10 +1,50 @@
 # opencode-workspaces
 
-A multi-root workspace plugin for OpenCode V2. The new **development package in
-`src/` is working**, while the older automatically discovered `.opencode/` plugin
-remains available separately. Do not load both in the same Location.
+A multi-root workspace plugin for OpenCode V2. The supported package exports the
+server, native TUI, and typed RPC from its compiled `dist/` build. The legacy
+`.opencode/` implementation remains in the source checkout for compatibility and
+rollback only; it is not included in the release archive.
 
-## Working development release
+## Start OpenCode
+
+Requires OpenCode V2 `2.0.32` and Bun `1.4.3` or newer. From this checkout:
+
+```powershell
+bun install --frozen-lockfile
+bun run start
+```
+
+The start command builds the package and opens OpenCode in a neutral launcher
+folder at `%LOCALAPPDATA%/opencode-workspaces/launcher` on Windows, or
+`$XDG_DATA_HOME/opencode-workspaces/launcher` (`~/.local/share` by default) on Unix.
+It creates only that launcher's local registration, never rewrites global settings,
+never restarts the shared service, and refuses to overwrite unrelated configuration.
+Existing providers and authentication stay managed by OpenCode.
+
+Open `/workspace`, create a definition, add your folders, and explicitly open a
+workspace session. `/workspace-add` and `/workspace-switch` also have palette
+entries. Use a model declaring at least 128k context for instruction-aware requests;
+the menus do not require a model.
+
+If Bun is not on PATH after dependencies have been installed:
+
+```powershell
+npm exec --yes --package=bun@1.4.3 -- bun run start
+```
+
+Set `OPENCODE_BIN` to the native OpenCode executable if it is not on PATH.
+`OPENCODE_WORKSPACE_LAUNCHER` can select a different launcher folder. Do not run
+plain `opencode` from this repository: that selects the legacy auto-discovered
+plugin. Do not register both generations globally or locally in the same Location;
+the new package rejects a detected legacy plugin instead of silently combining them.
+
+The default server catalog is
+`~/.config/opencode/workspace-manager/workspaces-v2.sqlite`. It is separate from
+the legacy JSON and is created when the plugin loads. `options.catalogPath` remains
+available for an explicit `.sqlite` override. Existing SQLite catalogs are retained;
+foreign databases are rejected. No JSON import or workspace attachment is automatic.
+
+## Workspace behavior
 
 The actual `/workspace` menu can create saved definitions, browse server folders,
 add/remove registrations, inspect status, and explicitly open an empty workspace
@@ -27,64 +67,137 @@ chooses conservative first-release behavior:
   Before starting work, select the definition again to apply saved root changes.
 - Children/forks do not automatically inherit selection. No native session metadata
   is modified, and the experimental metadata journal is not used.
-- One catalog per server; project overrides, legacy import, multi-root search
-  helpers, and release-install polish remain unfinished.
-  Native glob/grep targeting bound roots are blocked until safe search adapters
-  replace them; explicit native reads and directory listings work in this slice.
+- One catalog per server; no automatic project override or catalog move. Legacy
+  JSON import is explicit through the workspace menu. Native glob/grep targeting bound roots redirect the
+  agent to the workspace search helpers; unrelated native searches are unchanged.
 - Instruction byte limits are 32 KiB/file and 64 KiB total. The initial adapter
   requires a declared context of at least 128k; smaller/unknown budgets are blocked,
   not silently treated as supported. No shell/MCP sandbox or atomic instruction
   freshness across a native permission wait is claimed.
 
-To check the real package after installing development dependencies:
+Covered native file paths and shell workdirs are checked by both their supplied
+location and resolved filesystem location, including nearest existing parents of
+new files. An outside directory link into a selected root is rejected rather
+than treated as an unrelated native operation. Use the registered canonical path;
+approving an external-directory prompt does not override this policy. Multi-file
+patches and both rename endpoints are checked before any mutation. This does not
+inspect paths embedded in arbitrary shell commands or unknown third-party tools.
+
+`workspace_glob { pattern, alias?, exclude? }` and
+`workspace_grep { pattern, alias?, include?, exclude? }` search the invoking
+session's pinned roots, defaulting to all of them. Glob also accepts `alias:/glob`.
+Paths are alias-qualified; duplicate relative names remain distinguishable.
+The helpers share the legacy canonical-path, nested `.gitignore`, sensitive-path,
+link, and bounded UTF-8 reading implementation. Native read permissions apply to
+grep input and ignore files; a permission denial or cancellation is not partial success.
+
+Results are deterministic, with fixed per-root shares of 200 file paths or 100
+matching lines. Unused shares are not redistributed; narrow by alias to use the
+full limit in one root. Each response reports per-root completion/unavailability,
+`partial`, `truncated`, and limits. Each root has a 10,000-entry scan budget and
+an 8 MiB grep-input budget; individual grep files stay capped at 200 KiB. Grep
+uses the existing isolated JavaScript regex worker with a one-second per-file
+deadline, not ripgrep syntax. Binary/invalid UTF-8 and oversized grep files are
+excluded. Search exclusions do not prohibit an independently authorized native read.
+
+## Build and install
+
+Production compilation and packaging do not run tests:
 
 ```powershell
-bun install --frozen-lockfile
-bun run bun-typecheck
-bun run check:workspaces
+bun run typecheck
+bun run build
+bun run pack
 ```
 
-`check:workspaces` drives the actual menu in a private Windows OpenCode TUI, creates
-two disposable repositories, verifies both native edits/test suites/Git operations,
-checks sealed selection and sensitive-path rejection, and restarts only its private
-server to verify persistence. It also checks independent session indicators, narrow
-terminals, preserved draft input, and explicit application of a saved non-Git folder
-before work starts. It uses a deterministic loopback provider, not a paid
-model. It retains its exact fixture path for inspection. This is not a second mock
-workspace implementation or an installation into your current session.
+`typecheck` covers production source and release scripts only. `build` emits all
+three entrypoints, with OpenTUI/Solid external so the host supplies its UI runtime.
+`pack` creates `opencode-workspaces-0.1.0.tgz`; it includes only compiled modules,
+maps, a standalone manifest, and this README. SDK dependencies are declared in the
+archive. Source, legacy commands/plugins, tests, and build scripts are excluded.
 
-For an **opt-in source installation** after `bun install`, use a neutral launcher
-Location without the legacy plugin/Markdown commands. Add the package to that
-Location's own `opencode.json`, adjusting paths:
+To install the archive elsewhere, extract it into an empty folder and install its
+declared dependencies. Adjust paths for your machine:
+
+```powershell
+New-Item -ItemType Directory -Force -Path 'C:/tools/opencode-workspaces' | Out-Null
+tar -xf './opencode-workspaces-0.1.0.tgz' -C 'C:/tools/opencode-workspaces'
+bun install --cwd 'C:/tools/opencode-workspaces/package'
+```
+
+Register the extracted package exactly once in a neutral Location's `opencode.json`:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": [{
-    "package": "E:/Repository/opencode-workspaces",
-    "options": { "catalogPath": "C:/data/workspace-manager/workspaces-v2.sqlite" }
-  }]
+  "plugins": [{ "package": "C:/tools/opencode-workspaces/package" }]
 }
 ```
 
-Use a **new `.sqlite` file**, not an OpenCode database or the existing v1 JSON
-registry. The package rejects foreign databases. Opening the menu does not change
-your launch directory or load any registered root's plugins. Folder browsing is
-authenticated, human-initiated metadata administration; instruction contents are
-read later with the real session's permissions. Model tools use `workspace_status`
-and `workspace_resolve` plus native operations; there is no generic content/execute
-RPC. Source installation and the retained development fixture are not a published
-release/tarball acceptance claim.
+For a checkout installation instead, run `bun run build` and register its `dist`
+folder, not the repository root. OpenCode 2.0.32 probes local directories for
+root-level `index` and `tui` files rather than following their manifest exports.
+`bun run start` handles that registration and repairs its older root registration
+in its own neutral folder automatically. It checks the existing service's plugin
+inventory after activation and stops with an error if the plugin is unavailable.
+Do not add a second
+global registration. User-owned global/local legacy files are never removed by
+these commands. Disable their registration separately if a conflict is reported.
+
+Opening the menu does not change your launch directory or load registered roots'
+plugins. Folder browsing/import are authenticated human administration;
+instruction contents are read later with the real session's permissions. There is
+no generic content/execute RPC.
+
+The current release build and archive contents have been checked. Post-packaging
+runtime acceptance and further test changes are deferred until explicit approval;
+the earlier 139-test/runtime results predate these installation changes. No claim
+of new runtime acceptance is made by a successful build alone.
 
 Current handoff: [implementation status and next work](docs/PHASE_ZERO_HANDOFF.md).
 Historical [capability findings](docs/PHASE_ZERO_FINDINGS.md) explain which original
 requirements could not be supported safely and why the scope changed.
 
+## Import a legacy registry
+
+1. Stop every writer of the old JSON registry. Load only the new package in the
+  launcher Location, using a separate `.sqlite` catalog as above. Do not point
+  `catalogPath` at the JSON, an OpenCode database, or a foreign SQLite file.
+2. Open `/workspace`, choose **Import legacy registry**, and enter the server's
+  v1 JSON path. Preview and confirm explicitly. Cancel makes no changes. This is
+  human administration; registered instruction contents are not read by import.
+3. Import creates an exclusively named, timestamped backup beside the JSON,
+  syncs and verifies its bytes, then commits definitions and a durable receipt in
+  one SQLite transaction. The original JSON is never rewritten. Names, aliases,
+  root order, and normalized absolute paths are retained, including missing roots.
+4. The former `active` value is only a **Review former active** suggestion. Nothing
+  is attached automatically; review and explicitly select it in an empty or new
+  session. Existing selections and pinned roots remain unchanged.
+
+Retries of an unchanged canonical source reuse the original receipt and IDs,
+including after restart. A changed already-imported source is rejected instead of
+silently merged. Existing-name conflicts and malformed/future registries fail
+without partial definitions. Unknown lock owners fail closed; investigate ownership
+before removing a stale lock. The shared sidecar lock coordinates cooperating v1
+writers, not arbitrary external programs, so keep writers stopped during import.
+
+Interrupted or failed attempts may leave backup files; they are never overwritten
+or automatically restored. Only the backup path recorded by a successful import
+has completed verification. A failed attempt does not imply its backup is complete.
+
+To roll back to the legacy plugin, disable the new package and use the retained
+original JSON with the legacy installation. No JSON restore is needed. Keep the
+SQLite catalog for later use; development catalog schema 1 is upgraded atomically
+to schema 2 for import receipts, and older development builds cannot open schema 2.
+Do not load both plugins in one Location. Migration was previously exercised in
+the private TUI; fresh packaged-install runtime acceptance awaits approval.
+
 ## Legacy read-only plugin
 
 The remainder of this README documents the existing `.opencode/` installation,
 not the new `src/` package. It remains a read-only, globally selected virtual
-workspace with model-orchestrated menus. Its registry has not been migrated.
+workspace with model-orchestrated menus. Its JSON remains separate from the new
+SQLite catalog, even when definitions have been imported.
 
 ## Compatibility and UI limits
 
@@ -200,8 +313,12 @@ New-Item -ItemType Directory -Force -Path "$Project/.opencode/plugins" | Out-Nul
 New-Item -ItemType Directory -Force -Path "$Project/.opencode/commands" | Out-Null
 New-Item -ItemType Directory -Force -Path "$Project/.opencode/plugins/workspace-manager-notifications" | Out-Null
 
+$ServerPlugin = Join-Path $Project '.opencode/plugins/workspace-manager.ts'
+if (Test-Path -LiteralPath $ServerPlugin) {
+  throw "Already exists; review before replacing: $ServerPlugin"
+}
+
 $Files = @(
-  '.opencode/plugins/workspace-manager.ts',
   '.opencode/plugins/workspace-manager-notifications/package.json',
   '.opencode/plugins/workspace-manager-notifications/index.ts',
   '.opencode/plugins/workspace-manager-notifications/rpc.ts',
@@ -218,14 +335,17 @@ foreach ($File in $Files) {
   Copy-Item -LiteralPath (Join-Path $Source $File) -Destination $Destination
 }
 
+bun build "$Source/.opencode/plugins/workspace-manager.ts" --target bun --external '@opencode/plugin' --external '@opencode/plugin/*' --outfile $ServerPlugin
+if ($LASTEXITCODE -ne 0) { throw 'Legacy server plugin bundle failed' }
 bun add --cwd "$Project/.opencode" '@opencode/plugin@2.0.30' 'ignore@7.0.12' 'zod@4.1.8'
 Set-Location -LiteralPath $Project
 opencode
 ```
 
 The two quick commands reference the project-local `workspace.md`; keep the
-command files together. For an existing installation, review/diff updates rather
-than blindly overwriting local edits.
+command files together. The server entrypoint is bundled with its shared helpers;
+copying only its raw source no longer works. For an existing installation,
+review/diff updates rather than blindly overwriting local edits.
 
 ### V2 permission configuration
 

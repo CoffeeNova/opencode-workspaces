@@ -1,11 +1,14 @@
 import { Plugin } from "@opencode/plugin"
 import { Error as ToolError } from "@opencode/plugin/promise/tool"
 import * as fs from "node:fs/promises"
+import { homedir } from "node:os"
 import path from "node:path"
 import { z } from "zod"
-import { WorkspaceError, type Selection } from "./domain.ts"
+import { Alias, WorkspaceError, type Selection } from "./domain.ts"
 import { Catalog } from "./infrastructure/catalog.ts"
-import { absolute, browse, canonicalDirectory, checkedTarget, expanded, inside, pathKey, slash } from "./infrastructure/paths.ts"
+import { importLegacy, previewLegacy } from "./infrastructure/legacy-import.ts"
+import { absolute, browse, canonicalDirectory, checkedTarget, expanded, inside, overlapsRoots, pathKey, slash } from "./infrastructure/paths.ts"
+import { searchWorkspace } from "./infrastructure/search.ts"
 import { instructionBlock, instructionDelivery, InstructionError, patchTargets } from "./instructions/delivery.ts"
 import { WorkspaceRPC } from "./rpc.ts"
 
@@ -19,10 +22,11 @@ function failure(error: unknown): WorkspaceError {
 export default Plugin.define({
   id: "workspace-manager.v2",
   async setup(ctx) {
-    if (typeof ctx.options.catalogPath !== "string") throw new Error("Development release requires options.catalogPath pointing to a new .sqlite catalog; v1 registries are not migrated")
+    if (ctx.options.catalogPath !== undefined && (typeof ctx.options.catalogPath !== "string" || !ctx.options.catalogPath.trim())) throw new Error("options.catalogPath must be a non-empty .sqlite path")
     if ((await ctx.tool.list()).some((tool) => tool.id === "workspace_read")) throw new Error("Do not load the legacy workspace-manager alongside the new package in one Location")
     const directory = slash(await fs.realpath(ctx.location.directory))
-    const catalog = await Catalog.open(ctx.options.catalogPath, directory)
+    const catalogPath = ctx.options.catalogPath ?? path.join(homedir(), ".config", "opencode", "workspace-manager", "workspaces-v2.sqlite")
+    const catalog = await Catalog.open(catalogPath, directory)
     const deliveries = new Map<string, ReturnType<typeof instructionDelivery>>()
     const instructionStates = new Map<string, Selection["instructions"]>()
     async function compatible() {
@@ -83,6 +87,29 @@ export default Plugin.define({
             return call.error("workspace", problem.message, { code: problem.code })
           }
         },
+        legacyPreview: async (input, call) => {
+          try {
+            await compatible()
+            return await previewLegacy(input.path, directory, call.signal)
+          } catch (error) {
+            const problem = failure(error)
+            return call.error("workspace", problem.message, { code: problem.code })
+          }
+        },
+        importLegacy: async (input, call) => {
+          try {
+            await compatible()
+            const result = await importLegacy(catalog, input, directory, call.signal)
+            try {
+              const meta = catalog.state()
+              await rpc.events.emit("changed", { catalogID: meta.catalogID, revision: meta.revision })
+            } catch {}
+            return result
+          } catch (error) {
+            const problem = failure(error)
+            return call.error("workspace", problem.message, { code: problem.code })
+          }
+        },
         browse: async (input, call) => {
           try {
             call.signal.throwIfAborted()
@@ -130,7 +157,7 @@ export default Plugin.define({
             await rpc.events.emit("changed", { catalogID: meta.catalogID, revision: meta.revision, sessionID: event.sessionID })
           } catch {} // A notification must never mask native permission control flow.
         }
-        event.system.push({ type: "text", text: `Workspace ${JSON.stringify(binding.workspace.name)}, pinned revision ${binding.workspace.revision}. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir.\n${instructionBlock(snapshot)}` })
+        event.system.push({ type: "text", text: `Workspace ${JSON.stringify(binding.workspace.name)}, pinned revision ${binding.workspace.revision}. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.\n${instructionBlock(snapshot)}` })
       })
       await ctx.session.hook("compaction", (event) => { deliveries.get(event.sessionID)?.invalidate(); instructionStates.delete(event.sessionID) })
       await ctx.tool.hook("execute.before", async (event) => {
@@ -142,7 +169,7 @@ export default Plugin.define({
           const input = event.input as { path?: unknown; patchText?: unknown; workdir?: unknown }
           if (event.tool === "glob" || event.tool === "grep") {
             const searchDirectory = typeof input.path === "string" ? absolute(input.path, directory) : directory
-            if (bound.roots.some((root) => inside(root.path, searchDirectory) || inside(searchDirectory, root.path))) throw new WorkspaceError("SEARCH_NOT_READY", "Safe workspace search adapters are not installed in this development slice; use explicit native reads/alias resolution for now")
+            if (await overlapsRoots(searchDirectory, bound.roots)) throw new WorkspaceError("USE_WORKSPACE_SEARCH", "Use workspace_glob or workspace_grep for bound roots; native search cannot enforce workspace ignore and sensitive-path policy")
             return
           }
           const targets = event.tool === "patch" && typeof input.patchText === "string" ? patchTargets(input.patchText)
@@ -169,6 +196,38 @@ export default Plugin.define({
         if (event.action === "workspace_escape" && event.metadata?.workspaceManager === true && event.effect !== "deny") event.effect = "ask"
       })
       await ctx.tool.transform((editor) => {
+        for (const kind of ["glob", "grep"] as const) {
+          const Search = z.object({
+            pattern: z.string().min(1).max(4096), alias: Alias.optional(),
+            ...(kind === "grep" ? { include: z.string().min(1).max(4096).optional() } : {}),
+            exclude: z.array(z.string().min(1).max(4096)).max(32).optional(),
+          }).strict()
+          editor.add({
+            name: `workspace_${kind}`,
+            description: `Search this session's pinned workspace ${kind === "glob" ? "file paths by relative glob (also alias:/glob)" : "UTF-8 content by JavaScript regex, optionally filtered by include glob"}. Defaults to all roots; optional alias narrows to one. Honors nested .gitignore and exclude globs; skips sensitive paths and links. Deterministic per-root quotas share ${kind === "glob" ? 200 : 100} results. Reports partial/truncated/unavailable roots. Grep skips binary and >200 KiB files; scan/byte budgets and cancellation apply.`,
+            input: z.toJSONSchema(Search), options: { codemode: false },
+            execute: async (raw, context) => {
+              context.signal.throwIfAborted()
+              await session(context.sessionID)
+              const parsed = Search.safeParse(raw)
+              if (!parsed.success) throw new ToolError({ message: "INVALID_PATTERN: invalid workspace search arguments" })
+              const binding = catalog.selection(context.sessionID).binding?.workspace
+              if (!binding) throw new ToolError({ message: "NO_WORKSPACE: select a workspace in a new session through /workspace" })
+              const source = { type: "tool" as const, messageID: context.messageID, id: context.id }
+              try {
+                const result = await searchWorkspace(binding.roots, { kind, pattern: parsed.data.pattern, alias: parsed.data.alias, exclude: parsed.data.exclude, include: typeof parsed.data.include === "string" ? parsed.data.include : undefined }, {
+                  signal: context.signal,
+                  assert: (action, resource) => ctx.permission.assert({ sessionID: context.sessionID, agent: context.agent, source, action, resources: [resource], save: [] }),
+                })
+                return { content: JSON.stringify(result) }
+              } catch (error) {
+                context.signal.throwIfAborted()
+                if (error instanceof WorkspaceError) throw new ToolError({ message: error.message })
+                throw error
+              }
+            },
+          })
+        }
         editor.add({
           name: "workspace_status", description: "Show this session's explicit pinned workspace selection. No global active selection; saved-definition edits do not retarget running sessions.",
           input: { type: "object", properties: {}, additionalProperties: false }, options: { codemode: false },

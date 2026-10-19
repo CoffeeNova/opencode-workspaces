@@ -2,14 +2,14 @@ import { Plugin } from "@opencode/plugin"
 import { Error as ToolError, type ToolContext as NativeToolContext } from "@opencode/plugin/promise/tool"
 import { $ } from "bun"
 import { randomUUID } from "node:crypto"
-import { constants } from "node:fs"
 import * as fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { Worker } from "node:worker_threads"
-import ignore, { type Ignore } from "ignore"
 import { z } from "zod"
+import { WorkspaceError } from "../../src/domain.ts"
+import { registryLock } from "../../src/infrastructure/registry-lock.ts"
+import { boundedRead, decode, globScope, RegexMatcher, searchPattern, walk, type FileEntry } from "../../src/infrastructure/search.ts"
 import { WorkspaceNotifications } from "./workspace-manager-notifications/rpc.ts"
 
 // V2 entrypoint; helpers are private and all tools/hooks register through setup.
@@ -62,9 +62,7 @@ const Registry = z.object({
 type Root = z.infer<typeof WorkspaceRoot>
 type WorkspaceData = z.infer<typeof Workspace>
 type RegistryData = z.infer<typeof Registry>
-type FileEntry = { root: Root; absolute: string; relative: string; file: string; mtime: number; size: number }
 type Match = { file: string; line: number; text: string }
-type IgnoreLayer = { directory: string; rules: Ignore }
 
 // Keep filesystem operations independent of the server's tool transport.
 type ToolContext = Pick<NativeToolContext, "sessionID" | "agent" | "messageID" | "id"> & {
@@ -88,13 +86,6 @@ function workspaceTool<Args extends z.ZodRawShape>(definition: {
       if (!parsed.success) throw new ToolError({ message: `Invalid workspace tool arguments: ${parsed.error.issues.map((issue) => issue.message).join("; ")}` })
       return definition.execute(parsed.data, context)
     },
-  }
-}
-
-class WorkspaceError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message)
-    this.name = "WorkspaceError"
   }
 }
 
@@ -191,46 +182,6 @@ async function canonicalDirectory(raw: string, base: string): Promise<string> {
   return canonical
 }
 
-/** Reads at most limit bytes; refuses final-component links and non-regular files. */
-async function boundedRead(file: string, limit: number, signal?: AbortSignal): Promise<{ bytes: Buffer; truncated: boolean }> {
-  signal?.throwIfAborted()
-  const before = await fs.lstat(file)
-  if (!before.isFile()) fail("NOT_FILE", `Not a regular file: ${file}`)
-  const flags = constants.O_RDONLY | (WINDOWS ? 0 : constants.O_NOFOLLOW)
-  const handle = await fs.open(file, flags)
-  try {
-    const info = await handle.stat()
-    if (!info.isFile() || info.dev !== before.dev || info.ino !== before.ino) {
-      fail("PATH_CHANGED", "File changed while opening it; retry the operation")
-    }
-    const buffer = Buffer.alloc(Math.min(limit, Math.max(info.size, 1)))
-    let length = 0
-    while (length < buffer.length) {
-      signal?.throwIfAborted()
-      const result = await handle.read(buffer, length, buffer.length - length, null)
-      if (result.bytesRead === 0) break
-      length += result.bytesRead
-    }
-    const after = await handle.stat()
-    if (pathKey(absolute(await fs.realpath(file), path.dirname(file))) !== pathKey(file)) {
-      fail("PATH_CHANGED", "File path changed during the read; retry the operation")
-    }
-    return { bytes: buffer.subarray(0, length), truncated: info.size > length || after.size > length }
-  } finally {
-    await handle.close()
-  }
-}
-
-function decode(bytes: Buffer, truncated = false): string {
-  if (bytes.includes(0)) fail("BINARY_FILE", "Binary files are not supported")
-  try {
-    // Streaming decode drops an incomplete final UTF-8 character at the limit.
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: truncated })
-  } catch {
-    return fail("BINARY_FILE", "File is not valid UTF-8 text")
-  }
-}
-
 function emptyRegistry(): RegistryData {
   return { $schema: SCHEMA_URL, version: 1, active: null, workspaces: {} }
 }
@@ -301,52 +252,7 @@ class RegistryStore {
   }
 
   private async lock(signal: AbortSignal): Promise<() => Promise<void>> {
-    await fs.mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 })
-    const file = `${this.file}.lock`
-    const token = randomUUID()
-    const deadline = Date.now() + 5_000
-    while (true) {
-      signal.throwIfAborted()
-      try {
-        const handle = await fs.open(file, "wx", 0o600)
-        let written = false
-        try {
-          await handle.writeFile(JSON.stringify({ pid: process.pid, token, createdAt: Date.now() }))
-          written = true
-        } finally {
-          await handle.close()
-          if (!written) await fs.unlink(file)
-        }
-        return async () => {
-          try {
-            const current = JSON.parse(await fs.readFile(file, "utf8")) as { token?: unknown }
-            if (current.token === token) await fs.unlink(file)
-          } catch (error) {
-            if (errorCode(error) !== "ENOENT") throw error
-          }
-        }
-      } catch (error) {
-        if (errorCode(error) !== "EEXIST") throw error
-      }
-      // Reap only a lock old enough to be complete and owned by a dead process.
-      try {
-        const info = await fs.lstat(file)
-        if (info.isFile() && Date.now() - info.mtimeMs > 30_000 && info.size < 4096) {
-          const owner = JSON.parse(await fs.readFile(file, "utf8")) as { pid?: unknown }
-          if (typeof owner.pid === "number" && Number.isInteger(owner.pid) && owner.pid > 0) {
-            try {
-              process.kill(owner.pid, 0)
-            } catch (error) {
-              if (errorCode(error) === "ESRCH") await fs.unlink(file)
-            }
-          }
-        }
-      } catch (error) {
-        if (errorCode(error) !== "ENOENT" && !(error instanceof SyntaxError)) throw error
-      }
-      if (Date.now() >= deadline) fail("REGISTRY_BUSY", "Workspace registry is locked by another process; retry shortly")
-      await delay(40, undefined, { signal })
-    }
+    return registryLock(this.file, signal)
   }
 
   async mutate<T>(signal: AbortSignal, update: (registry: RegistryData) => T): Promise<{ registry: RegistryData; result: T }> {
@@ -462,148 +368,8 @@ async function resolveRead(raw: string, registry: RegistryData, context: ToolCon
   return { file: canonical, root }
 }
 
-function searchPattern(raw: string): Bun.Glob {
-  const value = slash(raw.trim())
-  if (!value || value.length > 4096 || /[\x00-\x1f\x7f]/.test(value) || path.isAbsolute(value) || /^[a-z]:/i.test(value) || value.split("/").includes("..")) {
-    fail("INVALID_PATTERN", "Use a relative glob without parent traversal")
-  }
-  try {
-    return new Bun.Glob(value)
-  } catch {
-    return fail("INVALID_PATTERN", "Invalid glob pattern")
-  }
-}
-
-function globScope(pattern: string, alias: string | undefined): { pattern: string; alias: string | undefined } {
-  const prefixed = /^([a-z0-9_-]+):\/(.*)$/s.exec(slash(pattern))
-  if (!prefixed) return { pattern, alias }
-  if (alias !== undefined && alias !== prefixed[1]) fail("INVALID_PATTERN", "Pattern alias and alias argument disagree")
-  return { pattern: prefixed[2] || "**/*", alias: prefixed[1] }
-}
-
-function isIgnored(file: string, directory: boolean, layers: IgnoreLayer[]): boolean {
-  let ignored = false
-  for (const layer of layers) {
-    const relative = slash(path.relative(layer.directory, file)) + (directory ? "/" : "")
-    const result = layer.rules.test(relative)
-    if (result.ignored) ignored = true
-    else if (result.unignored) ignored = false
-  }
-  return ignored
-}
-
-async function* walk(roots: Root[], signal: AbortSignal): AsyncGenerator<FileEntry> {
-  const seen = new Set<string>()
-  for (const root of roots) {
-    const queue: { directory: string; layers: IgnoreLayer[] }[] = [{ directory: root.path, layers: [] }]
-    while (queue.length) {
-      signal.throwIfAborted()
-      const current = queue.pop()!
-      const real = absolute(await fs.realpath(current.directory), root.path)
-      if (pathKey(real) !== pathKey(current.directory) || !inside(root.path, real)) {
-        fail("PATH_CHANGED", "A directory changed during the scan; retry the operation")
-      }
-      const layers = [...current.layers]
-      const ignoreFile = path.join(current.directory, ".gitignore")
-      try {
-        const info = await fs.lstat(ignoreFile)
-        if (info.isFile()) {
-          const result = await boundedRead(ignoreFile, READ_LIMIT, signal)
-          if (result.truncated) fail("IGNORE_TOO_LARGE", `.gitignore exceeds 200 KB: ${slash(ignoreFile)}`)
-          layers.push({ directory: current.directory, rules: ignore().add(decode(result.bytes)) })
-        }
-      } catch (error) {
-        if (errorCode(error) !== "ENOENT") throw error
-      }
-      const entries = await fs.readdir(current.directory, { withFileTypes: true })
-      entries.sort((a, b) => a.name.localeCompare(b.name, "en"))
-      const directories: { directory: string; layers: IgnoreLayer[] }[] = []
-      for (const entry of entries) {
-        signal.throwIfAborted()
-        const file = slash(path.join(current.directory, entry.name))
-        if ((WINDOWS ? entry.name.toLowerCase() : entry.name) === ".git" || denied(file) || entry.isSymbolicLink()) continue
-        if (isIgnored(file, entry.isDirectory(), layers)) continue
-        if (entry.isDirectory()) {
-          directories.push({ directory: file, layers })
-        } else if (entry.isFile()) {
-          try {
-            const canonical = absolute(await fs.realpath(file), root.path)
-            assertNotDenied(canonical)
-            if (!inside(root.path, canonical) || pathKey(canonical) !== pathKey(file)) fail("PATH_CHANGED", "A file changed during the scan")
-            if (seen.has(pathKey(canonical))) continue
-            const info = await fs.stat(canonical)
-            if (!info.isFile()) continue
-            seen.add(pathKey(canonical))
-            const relative = slash(path.relative(root.path, canonical))
-            yield { root, absolute: canonical, relative, file: `${root.alias}:/${relative}`, mtime: info.mtimeMs, size: info.size }
-          } catch (error) {
-            if (errorCode(error) !== "ENOENT") throw error
-          }
-        }
-      }
-      queue.push(...directories.reverse())
-    }
-  }
-}
-
 function clippedLine(value: string): string {
   return value.length > 2000 ? `${value.slice(0, 2000)} … [line truncated]` : value
-}
-
-// RegExp has no built-in execution deadline. Keep a pathological fallback
-// expression off the server thread, and request worker termination after one
-// second. Bun may need additional time to interrupt its regex engine.
-const REGEX_WORKER = String.raw`
-  const { parentPort, workerData } = require("node:worker_threads")
-  const regex = new RegExp(workerData, "u")
-  parentPort.on("message", ({ content, limit }) => {
-    const lines = content.split(/\r?\n/)
-    if (lines.at(-1) === "") lines.pop()
-    const hits = []
-    for (let index = 0; index < lines.length; index++) {
-      if (!regex.test(lines[index])) continue
-      hits.push({ line: index + 1, text: lines[index].slice(0, 2000), clipped: lines[index].length > 2000 })
-      if (hits.length === limit) break
-    }
-    parentPort.postMessage(hits)
-  })
-`
-type RegexHit = { line: number; text: string; clipped: boolean }
-
-class RegexMatcher {
-  private readonly worker: Worker
-  private failure: Error | undefined
-
-  constructor(pattern: string) {
-    this.worker = new Worker(REGEX_WORKER, { eval: true, workerData: pattern })
-    this.worker.on("error", (error: Error) => { this.failure = error })
-  }
-
-  async match(content: string, limit: number, signal: AbortSignal): Promise<RegexHit[]> {
-    signal.throwIfAborted()
-    if (this.failure) throw this.failure
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => finish(new WorkspaceError("REGEX_TIMEOUT", "Fallback regex exceeded its one-second timeout; simplify the pattern or install ripgrep")), 1000)
-      const cleanup = () => {
-        clearTimeout(timer)
-        this.worker.off("message", onMessage)
-        this.worker.off("error", onError)
-        signal.removeEventListener("abort", onAbort)
-      }
-      const finish = (error: unknown) => { cleanup(); reject(error) }
-      const onMessage = (hits: RegexHit[]) => { cleanup(); resolve(hits) }
-      const onError = (error: Error) => finish(error)
-      const onAbort = () => finish(signal.reason ?? new DOMException("Aborted", "AbortError"))
-      this.worker.once("message", onMessage)
-      this.worker.once("error", onError)
-      signal.addEventListener("abort", onAbort, { once: true })
-      this.worker.postMessage({ content, limit })
-    })
-  }
-
-  async close(): Promise<void> {
-    await this.worker.terminate()
-  }
 }
 
 async function fallbackGrep(roots: Root[], pattern: string, include: Bun.Glob | undefined, context: ToolContext): Promise<{ matches: Match[]; truncated: boolean; engine: string }> {

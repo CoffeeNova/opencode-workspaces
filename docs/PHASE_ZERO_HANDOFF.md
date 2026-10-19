@@ -2,19 +2,41 @@
 
 Updated: 2026-10-19. Branch: `feat/multi-root-phase-zero`.
 
-## Current phase: Phase 5 — multi-root search
+## Current phase: Phase 6 - implementation ready for review
 
-**Phase 5 is in progress.** Cross-root native reads/edits, independent test suites,
+**First-release implementation is ready for user review.** On 2026-10-19 the user
+requested completion without touching tests until approval. This increment adds
+default catalog storage, compiled exports, standalone archive, neutral launcher,
+and installation/rollback guidance. Production-only typecheck/build/pack pass.
+No test files/harnesses were changed or executed, and no OpenCode runtime was
+launched in this increment. Fresh packaged/lifecycle acceptance awaits approval.
+Earlier adapter/budget/lifecycle limits remain documented, not marked passed.
+Cross-root native reads/edits, independent test suites,
 and explicit-workdir Git/shell are demonstrated in the real package. The Phase 3
 management flow and session-aware footer indicator are also implemented and exercised.
-The next coding task is bounded multi-root `glob`/`grep` adapters that reuse the
-legacy ignore/path hardening without changing native behavior for unrelated sessions.
-After that, return to Phase 6 safe v1 import/backup and package/install acceptance.
+Bounded multi-root `workspace_glob`/`workspace_grep` now reuse shared legacy
+ignore/path/read/regex primitives without changing native behavior for unrelated
+sessions. Native preflight now also rejects outside directory links into pinned
+roots, including new-file parents, rename endpoints, and native search overlap.
+Earlier Phase 5 follow-ups are adapter/schema compatibility coverage, instruction
+budget policy, and diagnostics.
 
-Latest real-package acceptance is `workspace-phase-zero-yWvkrO`; it verified the
-indicator with two sessions, narrow-terminal ellipsis, blocked instruction state,
-and direct folder-add/application while preserving an editable draft. No new test
-suite was added for this UI increment. Existing 114 tests and typecheck pass.
+Latest real-package acceptance **before the packaging changes** is
+`workspace-phase-zero-nJTZjP`; it retains the
+indicator/menu/draft/native-development checks and adds actual pinned-root search,
+alias scoping, fair truncation, ignore/sensitive filtering, independent sessions,
+configured native read denial, and unchanged unbound native search. It also verifies
+nine linked-path rejections across read/edit/write/patch/rename/shell/glob/grep,
+with unchanged source files and no partial cross-root patch. The retained
+`working-plugin-path-checks.json` records the actual native failures. Focused cases
+were added to the existing regression file, not a new capability suite. Import now
+also passes real preview/cancel/confirm, exact backup, unchanged JSON/selections,
+former-active suggestion, and retry after private-server restart with zero
+administrative provider requests. `tests/catalog-import.test.ts` covers the real
+production catalog/importer rather than another probe implementation.
+Historical verification: **139 tests**, actual-package acceptance, and loader smoke
+passed. Current packaging changes have production-only typecheck, build, archive
+inventory, and editor diagnostics, not a new runtime/test pass.
 
 ## Current decision and implementation
 
@@ -34,11 +56,19 @@ The real package now lives in `src/`, exported by the root manifest:
   routing, native-theme colors, grapheme-safe label clipping, cancellation/cleanup,
   change notifications and bounded periodic metadata reconciliation.
 - `src/infrastructure/catalog.ts` — plugin-owned SQLite catalog; atomic request
-  receipts, definition changes, explicit binding, and first-request sealing.
+  receipts, definition changes, explicit binding, first-request sealing, and
+  transactional import receipts with schema-1-to-2 upgrade.
+- `src/infrastructure/legacy-import.ts`, `src/infrastructure/registry-lock.ts` —
+  strict bounded v1 validation, source fingerprinting, exclusive verified backups,
+  and the shared legacy-writer lock protocol. No source JSON rewrite.
 - `src/infrastructure/paths.ts` — server path normalization, deny policy, canonical
   roots, linked/new-file checks, and metadata-only browsing.
+- `src/infrastructure/search.ts` — shared hardened traversal, bounded UTF-8 reads,
+  isolated regex matcher, and production per-root quotas/partial-result reporting.
 - `src/instructions/delivery.ts` — the previously verified scoped delivery algorithm
   moved into the real package. The historical fixture re-exports it, avoiding a copy.
+- `scripts/build.ts`, `scripts/pack.ts`, `scripts/start.ts` — compiled distribution,
+  standalone archive, and neutral OpenCode launcher; no test execution.
 - `scripts/check-workspaces.ts` — one end-to-end check of these actual package
   entrypoints through the existing private runtime/TUI transport, not a new fake service.
 
@@ -53,9 +83,9 @@ development requests; zero administrative provider requests),
 `working-plugin-results.json`, `working-plugin-transcript.json`, provider requests,
 and `tui-workspace-product-screens.json`.
 
-Verification after implementation: existing typecheck and **114 existing tests**
-pass; the actual package end-to-end check and the legacy native-loader smoke pass.
-No new unit-test suite was added in this implementation increment.
+Initial vertical-slice verification, before the UI/search/path continuations:
+typecheck and **114 existing tests** passed, alongside actual-package acceptance
+and the legacy native-loader smoke. No new unit-test suite was added then.
 
 UI continuation: the footer now shows the actual viewed session's selection, no
 selection, unavailable state, and a blocked-instruction marker. Names are clipped
@@ -75,21 +105,72 @@ indicators in two simultaneous clients with a long name at 64 columns. Native
 OpenTUI truncation initially shortened the middle of names; the actual indicator
 now preserves the recognizable prefix and closing/blocked marker explicitly.
 
-Remaining implementation, in order:
+Next action is user review, not more implementation/test expansion:
 
-1. **Current Phase 5:** reuse the existing search/ignore services for pinned
-   multi-root search and finish production path/schema coverage, instruction budget
-   policy, and diagnostics.
-2. **Phase 6:** add safe v1 read/backup/import into the separate catalog, without
-   assigning the old global active selection to sessions or overwriting the source registry.
-3. Complete source/package installation, duplicate-registration guidance, and
-   focused acceptance of real features. Keep the existing regression suite; do not
-   return to broad pre-implementation capability-test expansion.
+1. From the checkout run `bun run start` (or the pinned npm Bun command in README).
+   It builds and opens a neutral launcher, preserving global settings/providers.
+2. Wait for explicit approval before editing/running tests, harnesses, smoke,
+   private runtime acceptance, or capability probes. Do not add further test suites.
+3. Once approved, complete packaged-install and lifecycle acceptance against the
+   documented first-release behavior; do not silently claim deferred gates passed.
+
+Release setup: catalog defaults to
+`~/.config/opencode/workspace-manager/workspaces-v2.sqlite`; `catalogPath` is
+optional. `bun run pack` emits `opencode-workspaces-0.1.0.tgz` from a standalone
+manifest, without source, tests, legacy entrypoints, or build scripts. SDK dependencies
+are declared and UI/Solid remain external for the host runtime. Production-only
+`bun run typecheck` excludes all tests and harnesses. `bun run start` creates its
+own neutral launcher registration, refuses unrelated existing config, and never
+restarts the shared service. It registers the built `dist` folder: pinned OpenCode
+2.0.32 resolves local directory entrypoints directly instead of following manifest
+exports. Older launcher-owned repository-root entries are upgraded atomically to
+`dist`, and existing-service activation is checked before opening the TUI.
+Legacy source stays for compatibility/rollback only.
+
+Phase 6 import: the real menu previews a user-supplied server JSON and requires
+confirmation. A cooperating-writer lock protects reread, exclusive timestamped
+backup, byte verification, and final source check. A SQLite transaction commits all
+definitions and a durable receipt together; no bindings change. IDs/aliases/paths
+survive retry/restart, and old active is only an explicit review suggestion.
+Conflicts, malformed/future data, stale previews, cancellation, backup sync failure,
+and source changes during backup are covered. Concurrent connections share one
+receipt. Schema upgrade preserves saved definitions and sealed pinned bindings;
+malformed older catalogs are rejected before changing their version or tables.
+Failed/interrupted attempts may leave unverified backup files; they are not
+overwritten or restored automatically. Unknown lock owners fail closed. Stop all
+external writers: the sidecar lock is cooperative, not an atomic filesystem fence.
+Rollback uses the untouched v1 JSON after disabling the new package. Catalog schema
+2 is not readable by older development builds. Default catalog storage is now
+implemented; fresh packaged runtime acceptance awaits user approval.
+
+Search continuation: fixed per-root shares divide 200 glob paths/100 grep lines;
+unused shares are not redistributed. Responses carry root statuses, partial and
+truncated flags, and scan/byte limits. Canonical overlapping roots have one owner
+per result. Each root has a 10,000-entry enumeration budget and 8 MiB grep-input
+budget; files remain limited to 200 KiB and matching uses the shared isolated
+JavaScript regex worker. Native file permissions are asserted before ignore/content
+reads, with the actual tool source. Permission rejection/cancellation never becomes
+an unavailable-root result. Missing roots remain visible as partial results.
+
+Native-path continuation: coverage is decided using both the supplied path and its
+resolved target, not lexical containment alone. An outside directory link into a
+selected root cannot bypass its sensitive-path or instruction preflight. New paths
+resolve through the nearest existing parent. The same rule covers shell workdirs;
+native glob/grep checks both lexical and canonical overlap. All patch targets and
+rename endpoints are validated before any mutation. Unrelated explicit paths,
+including unavailable paths, and unbound sessions retain native behavior. Covered
+workspace resolution failures still stop preflight. Shell argument analysis, hard-link identity,
+and atomic filesystem retargeting remain outside this guarantee.
+
+The legacy entrypoint now imports shared source helpers. Its documented standalone
+installation bundles those helpers before copying; a focused build test verifies
+that artifact has no remaining relative `src/` imports. Legacy output/ranking and
+security regressions still pass. This is not published-package acceptance.
 
 No real registry, global configuration, or shared service was changed. The legacy
-`.opencode/` entrypoints remain untouched until replacement/install parity is ready.
-The development package requires an explicit new `.sqlite` path and cannot be loaded
-alongside the legacy guard. No commit was created.
+`.opencode/` entrypoints remain available until replacement/install parity is ready.
+The package uses its own `.sqlite` catalog by default and cannot be loaded alongside
+the legacy guard. No commit was created. Never edit/run tests until the user approves.
 
 ## Historical phase-zero handoff (superseded ordering)
 

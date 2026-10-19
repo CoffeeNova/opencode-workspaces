@@ -144,6 +144,7 @@ export default Plugin.define({
             { title: "Show status", value: "status" },
             ...(active && !state.binding?.sealed ? [{ title: "Detach from this empty session", value: "detach" }] : []),
             ...(state.workspaces.length ? [{ title: "Delete saved definition", value: "delete", category: "Saved definitions" }] : []),
+            { title: "Import legacy registry", value: "import", category: "Saved definitions" },
           ] })
           if (!valid() || !selectedAction) return
           if (selectedAction === "create") {
@@ -159,6 +160,23 @@ export default Plugin.define({
               if (valid() && next === "add") await add(created)
               else if (valid() && next === "attach") await attach(created)
             }
+          } else if (selectedAction === "import") {
+            const entered = await context.ui.dialog.prompt({ title: "Legacy registry path", description: "Server-side v1 workspaces.json. The source is retained; no sessions are selected automatically." })
+            if (!valid() || entered === undefined) continue
+            const preview = await rpc.legacyPreview({ path: entered }, options)
+            if (!valid()) return
+            const confirmed = await context.ui.dialog.confirm({ title: "Confirm legacy import", message: `Import ${preview.workspaces.length} saved workspaces from:\n${preview.sourcePath}\n\nA verified backup is created beside the JSON before committing. Existing definitions are never overwritten. Registered AGENTS.md files may guide future workspace requests; this is not tool approval. No session selection changes.\nFormer active: ${preview.active ?? "none"}` })
+            if (!valid() || !confirmed) continue
+            const result = await rpc.importLegacy({ path: preview.sourcePath, fingerprint: preview.fingerprint, expectedRevision: state.revision }, options)
+            if (!await refresh()) return
+            const suggested = state.workspaces.find((workspace) => workspace.id === result.suggestedWorkspaceID)
+            if (suggested) {
+              const next = await context.ui.dialog.select({ title: "Legacy import complete", placeholder: `Backup: ${result.backupPath}`, options: [
+                { title: "Keep current session unchanged", value: "done" },
+                { title: `Review former active: ${suggested.name}`, value: "review" },
+              ] })
+              if (valid() && next === "review") await attach(suggested)
+            } else await context.ui.dialog.alert({ title: "Legacy import complete", message: `${result.imported.length} definitions imported. No session selections changed.\nBackup: ${result.backupPath}` })
           } else if (selectedAction === "status") {
             const selection = selected.sessionID ? await rpc.selection({ sessionID: selected.sessionID }, options) : undefined
             if (!valid()) return

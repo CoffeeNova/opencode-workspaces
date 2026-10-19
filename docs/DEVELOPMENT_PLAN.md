@@ -1,6 +1,6 @@
 # Multi-root Workspace Plugin: Development Plan and Contract
 
-Status: revised implementation contract; working first release in development.
+Status: first-release implementation ready for user review; fresh tests await approval.
 Research date: 2026-10-18.
 Target: OpenCode V2 terminal UI, Windows-first, with a server-side workspace service.
 
@@ -8,9 +8,14 @@ Implementation tracking: [Phase-zero capability evidence and open gates](PHASE_Z
 Phase-zero research is concluded for the reduced first-release scope below.
 The original inheritance/metadata gates did not pass and are not being relabelled
 as supported. The legacy plugin and registry remain available during development.
-**Current implementation phase: Phase 5 — full multi-repository development (in progress).**
-The working cross-root edit/test/Git slice and Phase 3 core UI/indicator are verified;
-multi-root search adapters are the next implementation task. See the current
+**Current implementation phase: Phase 6 - release implementation ready; acceptance paused.**
+The working cross-root edit/test/Git slice, Phase 3 core UI/indicator, and bounded
+multi-root search adapters are verified. Phase 6 was started explicitly on
+2026-10-19; non-destructive v1 import/backup is now implemented and checked in the
+real TUI. Default catalog storage, compiled exports, standalone archive, and a
+neutral-folder launch command are now implemented. On 2026-10-19 the user requested
+completion without touching tests until approval; post-packaging runtime acceptance
+and test work are paused, not relabelled passed. Remaining limitations are tracked in the current
 [handoff](PHASE_ZERO_HANDOFF.md#current-decision-and-implementation).
 
 ## 0. Implementation decision after capability research
@@ -39,9 +44,11 @@ future target, not a prerequisite for starting implementation.
   and automatic catalog moves are deferred. A bound session moved to another Location
   is rejected rather than silently rebased.
 - **Single-store SQLite catalog.** Use Bun's supported SQLite API for transactional
-  definitions, bindings, request receipts, and sealing. The initial development package
-  requires an explicit new `.sqlite` catalog path. It does not touch the v1 JSON file;
-  import/backup and a default installation path follow the working vertical slice.
+  definitions, bindings, request receipts, and sealing. The catalog defaults to
+  `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`, with an optional
+  explicit `.sqlite` override. V1 import is an explicit,
+  non-destructive read/backup into this separate catalog; it never rewrites the JSON.
+  Source JSON and foreign SQLite databases are never used as the default catalog.
 - **Honest instruction enforcement.** Reuse the verified scoped-delivery algorithm
   in production modules, with bounded source reads and native-tool preflight. No
   promise of atomic filesystem snapshots, changes during a native permission wait,
@@ -60,8 +67,11 @@ native menus, explicit binding, scoped context, and cross-root native edits. Reu
 existing regression coverage and check the actual package in one isolated runtime
 after implementation. Add focused regression cases for real defects, not another
 large throwaway capability suite. The footer indicator is implemented and checked in
-the real TUI. Multi-root search adapters are the current Phase 5 task; safe v1 import,
-default installation path, and package/install polish remain Phase 6 work. If the core
+the real TUI. Bounded multi-root search is implemented and verified in the actual
+package; remaining path/schema coverage, instruction budgets, and diagnostics
+remain documented limits or acceptance follow-ups. Phase 6 includes explicit v1
+import, default storage, compiled packaging, and a neutral launcher. Remaining
+runtime acceptance is paused at the user's request; it is not marked passed. If the core
 workflow cannot run safely on public APIs, stop and report that development should
 be held.
 
@@ -379,18 +389,37 @@ a different catalog, report the mismatch rather than silently importing bindings
 
 ### 7.2 Version-1 migration
 
-1. Read and fully validate v1 without mutation.
-2. Take a timestamped backup using exclusive creation; never overwrite a backup.
-3. Generate and persist IDs for the existing definitions; preserve aliases and paths.
-4. Convert under the existing exclusive lock and atomic-write discipline.
+The implemented Phase 6 migration is a non-destructive import into the separate
+SQLite catalog, not an in-place JSON conversion. Stop all writers before import.
+
+1. Read and validate v1 with the existing 4 MiB bound; preview names/root counts
+  and obtain explicit confirmation without changing definitions or selections.
+2. Acquire the same canonical sidecar lock as the legacy writer, reread, and
+  require the approved source fingerprint to match.
+3. Take an exclusively created timestamped backup, sync and verify exact bytes;
+  never overwrite an existing backup. Recheck the source before committing.
+4. Generate stable IDs and commit definitions plus a durable source/fingerprint
+  receipt in one SQLite transaction. Preserve names, aliases, root order, and
+  normalized absolute paths. Do not rewrite the source JSON.
 5. Do **not** assign the old global `active` selection to every session.
 6. Offer the former active workspace as a migration suggestion in the UI. Bind it
    only after the user selects it for a particular session.
-7. Make migration idempotent and resilient to interruption at every write step.
+7. Reuse the receipt on unchanged-source retries and after restart, without
+  duplicating IDs or definitions. Reject a changed already-imported source.
 
 Reject unknown future versions and malformed data without overwriting anything.
-Rolling back the plugin requires the documented backup procedure; do not run v1
-and v2 writers against one registry concurrently.
+Name conflicts roll back the whole import. Interrupted/failed attempts can leave
+backup files; only the successful receipt's recorded backup is verified. Unknown
+lock owners fail closed rather than being removed speculatively. The sidecar lock
+coordinates cooperating writers, not arbitrary programs or atomic filesystem
+snapshots. JSON member parsing retains the legacy reader's JSON semantics.
+
+Rollback uses the unchanged source JSON with the legacy plugin after disabling
+the new package. Keep the separate SQLite catalog; its schema-1-to-2 upgrade adds
+import receipts transactionally without changing definitions or session bindings.
+Malformed older catalogs are rejected before any schema upgrade.
+An older development build cannot open catalog schema 2. Do not load both plugin
+generations in one Location or let a legacy writer run during import.
 
 Preserve fsync/atomic replacement, lock ownership checks, stale-lock handling,
 canonical storage paths, cancellation, and clean expected errors. Session-binding
@@ -703,6 +732,16 @@ historical separation is needed.
   after permission and instruction adapters cover the intended path.
 - Keep workspace-specific search helpers where they add genuine multi-root behavior.
 
+The working preflight checks lexical and canonical path ownership, including the
+nearest existing parent for new files. Outside directory links into selected roots
+are rejected; they cannot turn workspace-sensitive files or undisclosed scopes
+into unrelated native operations. Native search checks canonical overlap as well.
+Actual-package acceptance exercises read/edit/write/patch/rename/shell/glob/grep
+through an outside link and verifies no side effects, including no partial patch
+in another root. Separate explicit paths unrelated to selected roots retain native
+policy. This does not extend coverage to paths embedded in shell command text or
+make filesystem retargeting atomic.
+
 ### 11.2 Search
 
 - `workspace_glob` and `workspace_grep` default to all roots in the invoking
@@ -716,6 +755,17 @@ historical separation is needed.
   deliberately. Native paginated reads retain the host's own documented limits.
 - Do not equate search exclusions with access permissions: a direct read of an
   ignored, non-sensitive file can still be an explicitly authorized operation.
+
+The working implementation shares hardened traversal, bounded UTF-8 reading,
+and an isolated JavaScript regex worker with the legacy tools. It allocates fixed
+per-root shares of 200 paths/100 matching lines, without redistributing unused
+shares. Search order is deterministic traversal, not the legacy glob's newest-first
+ranking. Each root is bounded to 10,000 enumerated entries and 8 MiB of grep input;
+grep still skips files over 200 KiB and binary/invalid UTF-8 files. Responses include
+per-root completion/truncation/unavailability plus aggregate partial/truncated flags.
+Configured native read denial and cancellation propagate rather than becoming
+partial success. Native searches overlapping bound roots are directed to these
+helpers; unrelated and unbound native search retains host behavior.
 
 ### 11.3 Commands and Git
 
@@ -839,8 +889,9 @@ requirement rests on an invented or unverified host capability.
 
 ### Phase 1 — Extract services without weakening behavior
 
-**Status: partial.** New catalog/path/instruction services exist; full legacy
-service extraction and search reuse remain unfinished.
+**Status: partial.** New catalog/path/instruction services exist; hardened search
+traversal/read/regex primitives are shared with legacy tools. Full legacy service
+extraction remains unfinished.
 
 - Extract storage, schemas, path policy, browsing, and search from the monolith.
 - Introduce transport-independent service methods and structured domain errors.
@@ -851,8 +902,9 @@ service extraction and search reuse remain unfinished.
 ### Phase 2 — Session bindings and versioned storage
 
 **Status: reduced binding implemented.** SQLite persistence, explicit empty-session
-binding, sealing, pinned roots, and private-server restart are verified. V1 migration
-and automatic child/fork inheritance are deferred by Section 0.
+binding, sealing, pinned roots, and private-server restart are verified. Explicit
+v1 definition import is now implemented in Phase 6. Automatic child/fork inheritance
+remains deferred by Section 0.
 
 - Implement v2 schema, revisions, stable IDs, migration, and backups.
 - Route every existing tool/context path through the invoking session's binding.
@@ -889,8 +941,10 @@ content; first-touch nested mutations cannot outrun instruction delivery.
 
 ### Phase 5 — Full multi-repository development
 
-**Status: CURRENT — IN PROGRESS.** Cross-root native edit, test, and Git operations
-are demonstrated. Implement safe bounded multi-root search/ignore adapters next.
+**Status: working slice verified; hardening follow-ups remain.** Cross-root native edit, test, Git, and safe bounded
+multi-root search/ignore adapters are demonstrated in the actual package. Continue
+production native path/schema coverage, instruction-budget policy, and diagnostics;
+do not treat search acceptance as completion of every lifecycle/install gate.
 
 - Enable native file operations in external roots and remove obsolete read guards.
 - Add alias resolution, fair cross-root search, explicit-workdir shell guidance/preflight.
@@ -901,8 +955,14 @@ are demonstrated. Implement safe bounded multi-root search/ignore adapters next.
 
 ### Phase 6 — Packaging, migration acceptance, and documentation
 
-**Status: pending.** Safe v1 import/backup, default catalog installation, published
-package acceptance, and retirement of legacy entrypoints remain.
+**Status: RELEASE IMPLEMENTATION READY - ACCEPTANCE PAUSED.** V1 import/backup,
+durable receipts, schema upgrade, default catalog storage, compiled server/TUI/RPC
+exports, a standalone tarball, and neutral launcher are implemented. Duplicate
+registration and rollback are documented. Legacy entrypoints are excluded from the
+release archive; source copies remain only for compatibility/rollback. Production
+typecheck/build/pack pass. No test files or harnesses were changed in this completion
+increment, and no tests or OpenCode runtime checks were run. Packaged-install and
+remaining lifecycle acceptance await user approval; earlier results are historical.
 
 - Ship one package with server/TUI/RPC exports and one supported install path.
 - Test package installation, not only source-linked development.

@@ -33,22 +33,12 @@ export async function canonicalDirectory(raw: string, base: string) {
   if (!(await fs.stat(canonical)).isDirectory()) throw new WorkspaceError("NOT_DIRECTORY", candidate)
   return canonical
 }
-export async function checkedTarget(raw: string, roots: readonly { path: string }[]) {
-  const value = expanded(raw)
-  if (!path.isAbsolute(value)) throw new WorkspaceError("INVALID_PATH", "Native file tools require absolute paths; use workspace_resolve for aliases")
-  const candidate = absolute(value, path.parse(value).root)
-  const root = [...roots].sort((a, b) => b.path.length - a.path.length).find((root) => inside(root.path, candidate))
-  if (!root) return undefined // Separate explicit operations retain native host policy.
-  assertNotDenied(candidate)
-  if (pathKey(await canonicalDirectory(root.path, root.path)) !== pathKey(root.path)) throw new WorkspaceError("ROOT_CHANGED", root.path)
+export async function canonicalTarget(candidate: string) {
   let ancestor = candidate
   const suffix: string[] = []
   while (true) {
     try {
-      const canonical = slash(path.join(await fs.realpath(ancestor), ...suffix))
-      assertNotDenied(canonical)
-      if (!inside(root.path, canonical) || pathKey(canonical) !== pathKey(candidate)) throw new WorkspaceError("OUTSIDE_ROOT", "Linked targets require explicit canonical registration")
-      return candidate
+      return slash(path.join(await fs.realpath(ancestor), ...suffix))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
       const next = path.dirname(ancestor)
@@ -56,6 +46,35 @@ export async function checkedTarget(raw: string, roots: readonly { path: string 
       suffix.unshift(path.basename(ancestor)); ancestor = next
     }
   }
+}
+const unavailable = (error: unknown) => ["ENOENT", "ENOTDIR", "EACCES", "EPERM", "ELOOP", "EBUSY", "ENAMETOOLONG"].includes((error as NodeJS.ErrnoException).code ?? "")
+export async function overlapsRoots(candidate: string, roots: readonly { path: string }[]) {
+  const overlaps = (target: string) => roots.some((root) => inside(root.path, target) || inside(target, root.path))
+  if (overlaps(candidate)) return true
+  try { return overlaps(await canonicalTarget(candidate)) } catch (error) {
+    if (unavailable(error)) return false
+    throw error
+  }
+}
+export async function checkedTarget(raw: string, roots: readonly { path: string }[]) {
+  const value = expanded(raw)
+  if (!path.isAbsolute(value)) throw new WorkspaceError("INVALID_PATH", "Native file tools require absolute paths; use workspace_resolve for aliases")
+  const candidate = absolute(value, path.parse(value).root)
+  const root = [...roots].sort((first, second) => second.path.length - first.path.length).find((root) => inside(root.path, candidate))
+  if (root) {
+    assertNotDenied(candidate)
+    if (pathKey(await canonicalDirectory(root.path, root.path)) !== pathKey(root.path)) throw new WorkspaceError("ROOT_CHANGED", root.path)
+  }
+  let canonical: string
+  try { canonical = await canonicalTarget(candidate) } catch (error) {
+    if (!root && unavailable(error)) return undefined
+    throw error
+  }
+  if (!root && !roots.some((registered) => inside(registered.path, canonical))) return undefined
+  assertNotDenied(candidate)
+  assertNotDenied(canonical)
+  if (!root || !inside(root.path, canonical) || pathKey(canonical) !== pathKey(candidate)) throw new WorkspaceError("OUTSIDE_ROOT", "Linked targets require explicit canonical registration")
+  return candidate
 }
 export function suggestedAlias(directory: string) { return path.basename(directory).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "root" }
 export async function browse(raw: string, base: string) {
