@@ -4,14 +4,31 @@ import * as fs from "node:fs/promises"
 import { tuiHost } from "./helpers/tui-host.ts"
 
 const fixtures: Awaited<ReturnType<typeof tuiHost>>[] = []
-afterEach(async () => { for (const h of fixtures.splice(0)) await h.dispose() })
-async function setup(route?: Route) { const h = await tuiHost(route); fixtures.push(h); return h }
+afterEach(async () => {
+  for (const h of fixtures.splice(0)) await h.dispose()
+})
+async function setup(route?: Route) {
+  const h = await tuiHost(route)
+  fixtures.push(h)
+  return h
+}
 
 test("only singular workspace and the existing add/switch commands are registered without imposed shortcuts", async () => {
   const h = await setup()
-  expect(h.commands.map((command) => command.slash?.name)).toEqual(["workspace", "workspace-add", "workspace-switch"])
-  expect(h.commands.map((command) => command.id)).toEqual(["workspace-manager.workspace", "workspace-manager.workspace-add", "workspace-manager.workspace-switch"])
-  for (const command of h.commands) { expect(command.palette).toBe(true); expect(command.bind).toBeUndefined() }
+  expect(h.commands.map((command) => command.slash?.name)).toEqual([
+    "workspace",
+    "workspace-add",
+    "workspace-switch",
+  ])
+  expect(h.commands.map((command) => command.id)).toEqual([
+    "workspace-manager.workspace",
+    "workspace-manager.workspace-add",
+    "workspace-manager.workspace-switch",
+  ])
+  for (const command of h.commands) {
+    expect(command.palette).toBe(true)
+    expect(command.bind).toBeUndefined()
+  }
   expect(h.slots).toEqual(["prompt.footer.status"])
   expect(await fs.exists(h.server.catalogPath)).toBe(false)
 })
@@ -65,15 +82,23 @@ test("home activation creates/binds a real empty session and waits for confirmat
   const workspace = (await h.server.seed()).workspaces[0]!
   const committed = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
-  h.holdAttach(async () => { committed.resolve(); await release.promise })
+  h.holdAttach(async () => {
+    committed.resolve()
+    await release.promise
+  })
   h.answers.push("switch", workspace.id, "new")
   const running = h.run()
   try {
     await committed.promise
     expect(h.created).toHaveLength(1)
     expect(h.navigations).toEqual([])
-    expect((await h.server.rpc.selection({ sessionID: h.created[0]!.id })).workspace?.id).toBe(workspace.id)
-  } finally { release.resolve(); await running }
+    expect((await h.server.rpc.selection({ sessionID: h.created[0]!.id })).workspace?.id).toBe(
+      workspace.id,
+    )
+  } finally {
+    release.resolve()
+    await running
+  }
   expect(h.navigations).toEqual([{ type: "session", sessionID: h.created[0]!.id }])
   expect(h.calls.filter((call) => call.method === "state")[0]!.input).toEqual({})
   expect(h.server.modelCalls).toBe(0)
@@ -84,7 +109,9 @@ test("home activation creates/binds a real empty session and waits for confirmat
 test("a started conversation only offers a new workspace session and retains its original binding", async () => {
   const h = await setup()
   const alpha = (await h.server.seed("alpha")).workspaces[0]!
-  const beta = (await h.server.seed("beta")).workspaces.find((workspace) => workspace.name === "beta")!
+  const beta = (await h.server.seed("beta")).workspaces.find(
+    (workspace) => workspace.name === "beta",
+  )!
   await h.server.change({ kind: "attach", workspaceID: alpha.id }, "ses_a")
   await h.server.context(h.server.request())
   h.answers.push("switch", beta.id, (options) => {
@@ -93,7 +120,9 @@ test("a started conversation only offers a new workspace session and retains its
   })
   await h.run()
   expect((await h.server.rpc.selection({ sessionID: "ses_a" })).workspace?.id).toBe(alpha.id)
-  expect((await h.server.rpc.selection({ sessionID: h.created[0]!.id })).workspace?.id).toBe(beta.id)
+  expect((await h.server.rpc.selection({ sessionID: h.created[0]!.id })).workspace?.id).toBe(
+    beta.id,
+  )
   expect(h.server.bindingCount()).toBe(2)
   expect(h.alerts).toEqual([])
 })
@@ -117,7 +146,10 @@ test("navigation cancels a pending menu choice before it can mutate another sess
   const h = await setup()
   const entered = Promise.withResolvers<void>()
   const selected = Promise.withResolvers<string | undefined>()
-  h.answers.push(() => { entered.resolve(); return selected.promise })
+  h.answers.push(() => {
+    entered.resolve()
+    return selected.promise
+  })
   const running = h.run()
   await entered.promise
   expect(h.selections).toHaveLength(1)

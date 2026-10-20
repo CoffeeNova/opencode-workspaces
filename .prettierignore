@@ -1,0 +1,9 @@
+dist
+node_modules
+coverage
+*.md
+bun.lock
+docs
+.agents
+.claude
+__snapshots__

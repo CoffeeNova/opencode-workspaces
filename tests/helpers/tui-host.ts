@@ -15,7 +15,11 @@ import { workspaceServer } from "./workspace-server.ts"
 import type { Fake } from "./fake.ts"
 
 type Options = { location: { directory: string }; signal: AbortSignal }
-type Answer = string | undefined | Promise<string | undefined> | ((options: DialogSelectOptions<string>) => string | undefined | Promise<string | undefined>)
+type Answer =
+  | string
+  | undefined
+  | Promise<string | undefined>
+  | ((options: DialogSelectOptions<string>) => string | undefined | Promise<string | undefined>)
 type Name = string | ((options: DialogPromptOptions) => string | undefined)
 // Every dialog and toast the menu shows, in call order, with the options it passed.
 export type DialogCall =
@@ -43,46 +47,83 @@ export async function tuiHost(initial: Route = { type: "session", sessionID: "se
   let layer: KeymapLayer | undefined
   let unregistered = 0
   let holdAttach: (() => Promise<void>) | undefined
-  const record = (method: string, input: unknown, options: Options) => { calls.push({ method, input, options }) }
+  const record = (method: string, input: unknown, options: Options) => {
+    calls.push({ method, input, options })
+  }
   const rpc = {
-    state: (input: { sessionID?: string }, options: Options) => { record("state", input, options); return server.rpc.state(input, options.signal) },
-    selection: (input: { sessionID: string }, options: Options) => { record("selection", input, options); return server.rpc.selection(input) },
+    state: (input: { sessionID?: string }, options: Options) => {
+      record("state", input, options)
+      return server.rpc.state(input, options.signal)
+    },
+    selection: (input: { sessionID: string }, options: Options) => {
+      record("selection", input, options)
+      return server.rpc.selection(input)
+    },
     change: async (input: Change, options: Options) => {
       record("change", input, options)
       const state = await server.rpc.change(input, options.signal)
       if (input.action.kind === "attach") await holdAttach?.()
       return state
     },
-    browse: (input: { path?: string }, options: Options) => { record("browse", input, options); return server.rpc.browse(input) },
-  }
-  const client = new Proxy({
-    rpc: (definition: typeof WorkspaceRPC) => {
-      if (definition !== WorkspaceRPC) throw new Error("Unexpected RPC definition")
-      return rpc
+    browse: (input: { path?: string }, options: Options) => {
+      record("browse", input, options)
+      return server.rpc.browse(input)
     },
-    session: {
-      create: async (input: unknown) => {
-        const id = server.addSession(`ses_created_${created.length + 1}`)
-        created.push({ id, input })
-        return { id }
+  }
+  const client = new Proxy(
+    {
+      rpc: (definition: typeof WorkspaceRPC) => {
+        if (definition !== WorkspaceRPC) throw new Error("Unexpected RPC definition")
+        return rpc
+      },
+      session: {
+        create: async (input: unknown) => {
+          const id = server.addSession(`ses_created_${created.length + 1}`)
+          created.push({ id, input })
+          return { id }
+        },
       },
     },
-  }, { get(target, key) {
-    if (key === "rpc") return target.rpc
-    if (key === "session") return target.session
-    forbidden.push(String(key))
-    throw new Error(`Unexpected TUI client operation ${String(key)}`)
-  } })
+    {
+      get(target, key) {
+        if (key === "rpc") return target.rpc
+        if (key === "session") return target.session
+        forbidden.push(String(key))
+        throw new Error(`Unexpected TUI client operation ${String(key)}`)
+      },
+    },
+  )
   const context = {
-    location: { directory: server.directory }, client,
+    location: { directory: server.directory },
+    client,
     data: {
       location: { default: () => ({ directory: server.directory }) },
-      session: { get: (id: string) => cached && server.sessions.has(id) ? { location: { directory: server.sessions.get(id)!.directory } } : undefined },
+      session: {
+        get: (id: string) =>
+          cached && server.sessions.has(id)
+            ? { location: { directory: server.sessions.get(id)!.directory } }
+            : undefined,
+      },
     },
-    keymap: { layer: (factory: () => KeymapLayer) => { layer = factory() } },
+    keymap: {
+      layer: (factory: () => KeymapLayer) => {
+        layer = factory()
+      },
+    },
     ui: {
-      router: { current: () => current, navigate: (route: Route) => { navigations.push(route); current = route } },
-      slot: (input: { append: string }) => { slots.push(input.append); return () => { unregistered++ } },
+      router: {
+        current: () => current,
+        navigate: (route: Route) => {
+          navigations.push(route)
+          current = route
+        },
+      },
+      slot: (input: { append: string }) => {
+        slots.push(input.append)
+        return () => {
+          unregistered++
+        }
+      },
       toast: {
         show: (options: ToastOptions) => {
           transcript.push({ kind: "toast", options })
@@ -117,8 +158,12 @@ export async function tuiHost(initial: Route = { type: "session", sessionID: "se
     },
   } satisfies Fake<Context> as unknown as Context
   let initialized: Awaited<ReturnType<typeof Tui.setup>>
-  try { initialized = await Tui.setup(context) }
-  catch (error) { await server.dispose(); throw error }
+  try {
+    initialized = await Tui.setup(context)
+  } catch (error) {
+    await server.dispose()
+    throw error
+  }
   if (!layer?.commands || typeof initialized !== "function") {
     await server.dispose()
     throw new Error("Workspace TUI did not register commands/cleanup")
@@ -126,19 +171,47 @@ export async function tuiHost(initial: Route = { type: "session", sessionID: "se
   const cleanup = initialized
   const commands = layer.commands
   let unloaded = false
-  const unload = () => { if (!unloaded) { unloaded = true; cleanup() } }
+  const unload = () => {
+    if (!unloaded) {
+      unloaded = true
+      cleanup()
+    }
+  }
   return {
-    server, answers, names, confirmations, selections, alerts, transcript,
-    calls, created, navigations, forbidden, slots, commands, unload,
-    get unregistered() { return unregistered },
-    route(value: Route) { current = value },
-    cached(value: boolean) { cached = value },
-    holdAttach(value: () => Promise<void>) { holdAttach = value },
+    server,
+    answers,
+    names,
+    confirmations,
+    selections,
+    alerts,
+    transcript,
+    calls,
+    created,
+    navigations,
+    forbidden,
+    slots,
+    commands,
+    unload,
+    get unregistered() {
+      return unregistered
+    },
+    route(value: Route) {
+      current = value
+    },
+    cached(value: boolean) {
+      cached = value
+    },
+    holdAttach(value: () => Promise<void>) {
+      holdAttach = value
+    },
     async run(name = "workspace") {
       const command = commands.find((command) => command.slash?.name === name)
       if (!command) throw new Error(`Missing slash command ${name}`)
       await command.run()
     },
-    async dispose() { unload(); await server.dispose() },
+    async dispose() {
+      unload()
+      await server.dispose()
+    },
   }
 }

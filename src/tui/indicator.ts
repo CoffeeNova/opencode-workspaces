@@ -9,7 +9,9 @@ function label(name: string, columns: number, blocked = false) {
   const mark = blocked ? "!" : ""
   if (Bun.stringWidth(`[ws:${name}${mark}]`) <= columns) return `[ws:${name}${mark}]`
   let prefix = ""
-  for (const { segment } of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(name)) {
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(
+    name,
+  )) {
     if (Bun.stringWidth(`[ws:${prefix}${segment}…${mark}]`) > columns) break
     prefix += segment
   }
@@ -50,11 +52,17 @@ export function registerWorkspaceIndicator(context: Context) {
         let retryMs = 2000
         const refresh = async () => {
           if (lifetime.signal.aborted) return
-          if (busy) { queued = true; return }
+          if (busy) {
+            queued = true
+            return
+          }
           clearTimeout(timer)
           busy = true
           try {
-            const result = await rpc.selection({ sessionID }, { location, signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(5000)]) })
+            const result = await rpc.selection(
+              { sessionID },
+              { location, signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(5000)]) },
+            )
             if (lifetime.signal.aborted) return
             catalogID = result.catalogID ?? undefined
             active = result.workspace !== null
@@ -72,15 +80,26 @@ export function registerWorkspaceIndicator(context: Context) {
           } finally {
             busy = false
             if (!lifetime.signal.aborted && (active || queued)) {
-              timer = setTimeout(() => { void refresh() }, queued ? 0 : retryMs)
+              timer = setTimeout(
+                () => {
+                  void refresh()
+                },
+                queued ? 0 : retryMs,
+              )
               queued = false
             }
           }
         }
-        const requestRefresh = () => { void refresh() }
+        const requestRefresh = () => {
+          void refresh()
+        }
         const unsubscribe = rpc.events.on("changed", (event) => {
-          if (event.location.directory !== location.directory || (catalogID && event.data.catalogID !== catalogID)
-            || (event.data.sessionID && event.data.sessionID !== sessionID)) return
+          if (
+            event.location.directory !== location.directory ||
+            (catalogID && event.data.catalogID !== catalogID) ||
+            (event.data.sessionID && event.data.sessionID !== sessionID)
+          )
+            return
           if (active || event.data.sessionID) requestRefresh()
         })
         const reconnect = context.data.on("server.connected", requestRefresh)
@@ -107,21 +126,41 @@ export function registerWorkspaceIndicator(context: Context) {
       // share the host renderer without a separate Babel/JSX build pipeline.
       return createComponent(Show, {
         keyed: true,
-        get when() { return unavailable() || !!selection()?.workspace },
+        get when() {
+          return unavailable() || !!selection()?.workspace
+        },
         get children() {
           return jsx("text", {
             get content() {
               if (unavailable()) return label("unavailable", budget())
               const current = selection()
-              return current?.workspace ? label(current.workspace.name, budget(), current.instructions === "blocked") : ""
+              return current?.workspace
+                ? label(current.workspace.name, budget(), current.instructions === "blocked")
+                : ""
             },
-            get fg() { return unavailable() || selection()?.instructions === "blocked" ? context.theme.text.feedback.warning.base : context.theme.text.muted },
-            get maxWidth() { return budget() },
-            wrapMode: "none", truncate: true, flexShrink: 0,
+            get fg() {
+              return unavailable() || selection()?.instructions === "blocked"
+                ? context.theme.text.feedback.warning.base
+                : context.theme.text.muted
+            },
+            get maxWidth() {
+              return budget()
+            },
+            wrapMode: "none",
+            truncate: true,
+            flexShrink: 0,
           })
         },
       })
     },
   })
-  return { refresh() { for (const refresh of refreshers) refresh() }, dispose() { unregister(); knownActive.clear() } }
+  return {
+    refresh() {
+      for (const refresh of refreshers) refresh()
+    },
+    dispose() {
+      unregister()
+      knownActive.clear()
+    },
+  }
 }

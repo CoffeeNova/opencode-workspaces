@@ -124,7 +124,10 @@ function transcriptOf(h: TuiHost) {
   expect(h.answers).toEqual([])
   expect(h.names).toEqual([])
   expect(h.confirmations).toEqual([])
-  return normalized(h.transcript.map(({ kind, options }) => ({ kind, ...options })), h.server.base)
+  return normalized(
+    h.transcript.map(({ kind, options }) => ({ kind, ...options })),
+    h.server.base,
+  )
 }
 
 function pick(title: string) {
