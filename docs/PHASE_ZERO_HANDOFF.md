@@ -1,6 +1,6 @@
 # Development Handoff — Working Plugin First
 
-Updated: 2026-10-19. Branch: `feat/multi-root-phase-zero`.
+Updated: 2026-10-20. Branch: `feat/multi-root-phase-zero`.
 
 ## Current phase: reviewed implementation and automated regressions; live acceptance pending
 
@@ -26,6 +26,10 @@ registration repair. Shared filesystem/search/PowerShell cases are preserved in
 `tests/filesystem.test.ts`. That cleanup used production-only verification.
 The user subsequently reviewed the result and approved related automated
 unit/adapter updates and runs without OpenCode; the current scope is recorded below.
+On 2026-10-20 the user requested moving the default catalog location alongside
+OpenCode's global configuration on Windows too. This supersedes the LocalAppData
+default above, without automatic data migration or changes to the SQLite format.
+Explicit overrides remain supported; no real user catalog or configuration is touched.
 Cross-root native reads/edits, independent test suites,
 and explicit-workdir Git/shell are demonstrated in the real package. The Phase 3
 management flow and session-aware footer indicator are also implemented and exercised.
@@ -72,15 +76,19 @@ not fixed or silently marked passed. Phase-zero research is concluded for this s
   Missing parents/files/rows are not created on load, passive requests, or reads.
   Explicit administrative writes initialize single-flight; active capture requires
   an existing catalog. Both readers and writers reject schema 1 and other unsupported formats.
-- New Windows catalogs default to
-  `%LOCALAPPDATA%\opencode-workspaces\workspaces-v2.sqlite`, with
-  `~/AppData/Local` as the unset-environment fallback. Relative `LOCALAPPDATA` is
-  rejected, not made project-relative. Other platforms retain their existing default.
-  There is no lookup or retention of older Windows paths. The chosen path is
+- All platforms default to
+  `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`, alongside OpenCode's
+  global configuration. Windows uses
+  `%USERPROFILE%\.config\opencode\workspace-manager\workspaces-v2.sqlite`;
+  `LOCALAPPDATA` no longer affects catalog storage.
+  There is no lookup or retention of previous paths. The chosen path is
   cached for the plugin lifetime; no catalog is moved, copied, or merged.
   Explicit `catalogPath` takes precedence over the default; a test
   override into a project is why the user's review DB was created there.
-  Removing/changing an override does not transfer its definitions or bindings.
+  Changing the default or removing/changing an override does not transfer its
+  definitions or bindings. Keep an explicit override or deliberately transfer a
+  SQLite-consistent backup before selecting another location. The catalog also
+  holds local session state and must not be committed or live-synchronized.
 - Passive context returns before capture, instruction reads, model-budget gates,
   native-tool preflight, and workspace permission work. Its request tool map loses
   only this plugin's helpers. Independent helper guards reject passive direct calls;
@@ -210,9 +218,9 @@ Next action is user review, not test/runtime expansion or live installation:
 3. Once approved, complete packaged-install and lifecycle acceptance against the
    documented first-release behavior; do not silently claim deferred gates passed.
 
-Release setup: new Windows catalogs default to
-`%LOCALAPPDATA%\opencode-workspaces\workspaces-v2.sqlite`; other platforms keep
-`~/.config/opencode/workspace-manager/workspaces-v2.sqlite`. No previous Windows
+Release setup: all platforms default to
+`~/.config/opencode/workspace-manager/workspaces-v2.sqlite`; Windows uses
+`%USERPROFILE%\.config\opencode\workspace-manager\workspaces-v2.sqlite`. No previous
 default is probed or retained; `catalogPath` overrides the default explicitly.
 No existing real catalog was moved or
 reset in this increment. Missing storage is initialized by an explicit administrative write, not

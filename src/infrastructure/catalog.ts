@@ -14,10 +14,7 @@ type Meta = { catalogID: string; revision: number }
 export class Catalog {
   private constructor(private readonly db: Database) {}
   static async defaultPath() {
-    if (process.platform !== "win32") return path.join(homedir(), ".config", "opencode", "workspace-manager", "workspaces-v2.sqlite")
-    const local = process.env.LOCALAPPDATA || path.join(homedir(), "AppData", "Local")
-    if (!path.isAbsolute(local)) throw new WorkspaceError("INVALID_REGISTRY", "LOCALAPPDATA must be an absolute directory; correct it or set options.catalogPath explicitly")
-    return path.join(local, "opencode-workspaces", "workspaces-v2.sqlite")
+    return path.join(homedir(), ".config", "opencode", "workspace-manager", "workspaces-v2.sqlite")
   }
   private static async locate(raw: string, base: string, create: boolean) {
     if (path.extname(raw).toLowerCase() !== ".sqlite") throw new WorkspaceError("INVALID_REGISTRY", "Workspace catalogs require a .sqlite path")

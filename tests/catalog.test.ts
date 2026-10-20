@@ -158,15 +158,17 @@ test("foreign/corrupt databases and JSON paths are rejected without replacing by
   expect(await fs.readFile(json)).toEqual(bytes)
 })
 
-test.skipIf(process.platform !== "win32")("Windows defaults use LocalAppData without filesystem or old-path discovery", async () => {
-  process.env.LOCALAPPDATA = path.join(base, "local-data")
+test("defaults use the OpenCode configuration directory without filesystem or old-path discovery", async () => {
+  const expected = path.join(homedir(), ".config", "opencode", "workspace-manager", "workspaces-v2.sqlite")
   const lstat = spyOn(fs, "lstat")
+  const mkdir = spyOn(fs, "mkdir")
   try {
-    expect(await Catalog.defaultPath()).toBe(path.join(base, "local-data", "opencode-workspaces", "workspaces-v2.sqlite"))
-    delete process.env.LOCALAPPDATA
-    expect(await Catalog.defaultPath()).toBe(path.join(homedir(), "AppData", "Local", "opencode-workspaces", "workspaces-v2.sqlite"))
+    for (const local of [path.join(base, "local-data"), undefined, "", "relative-data"]) {
+      if (local === undefined) delete process.env.LOCALAPPDATA
+      else process.env.LOCALAPPDATA = local
+      expect(await Catalog.defaultPath()).toBe(expected)
+    }
     expect(lstat).not.toHaveBeenCalled()
-    process.env.LOCALAPPDATA = "relative-data"
-    await expect(Catalog.defaultPath()).rejects.toThrow("LOCALAPPDATA must be an absolute directory")
-  } finally { lstat.mockRestore() }
+    expect(mkdir).not.toHaveBeenCalled()
+  } finally { lstat.mockRestore(); mkdir.mockRestore() }
 })

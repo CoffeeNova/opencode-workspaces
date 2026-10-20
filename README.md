@@ -58,14 +58,13 @@ a model declaring at least 128k context.
 
 ### Catalog storage
 
-Windows installations use
-`%LOCALAPPDATA%\opencode-workspaces\workspaces-v2.sqlite`, normally
-`C:\Users\<user>\AppData\Local\opencode-workspaces\workspaces-v2.sqlite`.
-If `LOCALAPPDATA` is unset, the fallback is the current user's
-`AppData\Local` directory; a relative `LOCALAPPDATA` is rejected, not resolved
-against the launch folder. On other platforms the default remains
-`~/.config/opencode/workspace-manager/workspaces-v2.sqlite`. These are server-user
-paths, independent of the project directory.
+On every platform, the default catalog is stored alongside OpenCode's global
+configuration at `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`.
+On Windows this is
+`%USERPROFILE%\.config\opencode\workspace-manager\workspaces-v2.sqlite`, normally
+`C:\Users\<user>\.config\opencode\workspace-manager\workspaces-v2.sqlite`.
+The path belongs to the server user and is independent of the project directory.
+`LOCALAPPDATA` no longer affects catalog storage.
 
 `options.catalogPath` still accepts an explicit `.sqlite` override and takes
 precedence over the default. A temporary `catalogPath` in a project-local config
@@ -76,10 +75,9 @@ The resolved location stays fixed for the plugin lifetime. Older Windows paths
 are not searched or retained. No catalog is copied, moved, reset, or merged
 automatically.
 
-Changing/removing an explicit override selects another catalog; it does not
-transfer existing definitions or bindings. Retain the override if those records
-matter until you intentionally transfer the catalog. Never move/delete an open
-SQLite catalog or copy only its main file while WAL writes may still be pending.
+The catalog contains machine-specific absolute paths and session state, not just
+portable preferences. Do not commit it to Git or synchronize its live SQLite/WAL
+files between machines.
 
 Startup, passive requests, menu opening, and status reads do not create a missing
 catalog, its parent, or binding rows. Creation is deferred to an explicit
@@ -94,6 +92,27 @@ application ID, storage version, and plugin/RPC IDs are not renamed or reset:
 they identify the current format, not a promise of older-version support.
 An unused historical import table in an existing current-format database is left
 untouched; new catalogs do not create it.
+
+#### Keeping or moving an existing catalog
+
+The default has changed from
+`%LOCALAPPDATA%\opencode-workspaces\workspaces-v2.sqlite` on Windows.
+Changing the default or changing/removing an explicit override selects another
+catalog; it does not transfer definitions or bindings. Before using the new
+default, either set `options.catalogPath` to the existing catalog's absolute path
+to keep using it, or deliberately transfer that current-format catalog:
+
+1. Stop every OpenCode server using the source or destination catalog. Closing
+   only the TUI may leave its server running.
+2. Make a SQLite-consistent backup. Use a SQLite-aware backup, or copy only after
+   all connections are closed and WAL data has been checkpointed. Never copy
+   just the main file while WAL writes may still be pending.
+3. Place the backup at the new default path without overwriting another catalog.
+   Keep the original as a backup.
+4. Remove the old path override, or update it to the destination, then restart
+   OpenCode and verify saved definitions and previously bound sessions.
+
+No existing user catalog is moved, copied, converted, or merged by the plugin.
 
 ## Workspace behavior
 

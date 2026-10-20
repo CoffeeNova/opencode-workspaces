@@ -32,6 +32,11 @@ After reviewing that implementation, the user explicitly approved updating and
 running related automated tests without OpenCode. This supersedes the earlier
 test-work hold for unit/adapter regressions and full typechecking only; runtime
 acceptance, smoke checks, capability scripts, and real data/configuration remain excluded.
+On 2026-10-20 the user requested storing the catalog alongside OpenCode's global
+configuration on Windows too. This supersedes the LocalAppData default above:
+all platforms now use `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`.
+Explicit overrides remain supported; existing catalogs require an explicit
+override or a deliberate SQLite-consistent transfer, not automatic migration.
 
 ## 0. Implementation decision after capability research
 
@@ -62,12 +67,13 @@ future target, not a prerequisite for starting implementation.
   and automatic catalog moves are deferred. A bound session moved to another Location
   is rejected rather than silently rebased.
 - **Single-store SQLite catalog.** Use Bun's supported SQLite API for transactional
-  definitions, bindings, request receipts, and sealing. New Windows catalogs default
-  to `%LOCALAPPDATA%\opencode-workspaces\workspaces-v2.sqlite`, with
-  `~/AppData/Local` as the unset-environment fallback. Other platforms retain
-  `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`. An explicit
-  `.sqlite` override takes precedence. No old Windows path is probed, retained,
-  copied, or merged automatically. Only the current SQLite format is supported;
+  definitions, bindings, request receipts, and sealing. On every platform the
+  default is `~/.config/opencode/workspace-manager/workspaces-v2.sqlite`, alongside
+  OpenCode's global configuration. On Windows this is
+  `%USERPROFILE%\.config\opencode\workspace-manager\workspaces-v2.sqlite`;
+  `LOCALAPPDATA` does not affect catalog storage. An explicit `.sqlite` override
+  takes precedence. No previous path is probed, retained, copied, or merged
+  automatically. Only the current SQLite format is supported;
   old/future schema versions, JSON registries, and foreign databases are rejected
   without conversion or overwrite. There is no import or rollback compatibility
   layer for earlier unreleased implementations.
@@ -110,7 +116,7 @@ reason to bundle or downgrade the host's Solid runtime.
 
 This scoped revision implements [the opt-in plan](OPT_IN_WORKSPACES_PLAN.md);
 older broad requirements below remain subject to Section 0. The user's subsequent
-single-command, LocalAppData, and current-format-only requests above override
+single-command, shared OpenCode-config storage, and current-format-only requests above override
 the corresponding details in that plan.
 
 - Passive session hooks return before instruction/model-budget checks, catalog
@@ -127,8 +133,12 @@ the corresponding details in that plan.
   current-format definitions, bindings, revisions, and request receipts are retained.
 - Default-path selection is lazy and cached for the plugin lifetime; it never
   initializes storage or probes older Windows locations. Explicit `catalogPath`
-  bypasses the default. Relative `LOCALAPPDATA` values fail explicitly, not into the launch cwd.
-  Changing/removing an override does not transfer records between catalogs.
+  bypasses the default. The default stays under the server user's OpenCode
+  configuration directory regardless of `LOCALAPPDATA` or the launch cwd.
+  Changing the default or changing/removing an override does not transfer records
+  between catalogs. Retain an explicit override or arrange a SQLite-consistent
+  transfer before using a different location; live database/WAL files are not
+  portable configuration for Git or cross-machine synchronization.
 - Admission retains at most 10,000 started session IDs per Location/plugin lifetime.
   It never evicts a marker to guess eligibility. Saturation disables further attach,
   without blocking passive native work or existing active bindings. Native history
@@ -463,7 +473,7 @@ not its on-disk layout; Section 0's pinned snapshots govern actual bindings:
 - In-flight request snapshots and instruction fingerprints are runtime state, not
   trusted facts restored from a previous process.
 
-Use the platform defaults in Section 0 or an explicit `options.catalogPath`, with
+Use the shared OpenCode-config default in Section 0 or an explicit `options.catalogPath`, with
 no previous-path lookup, implicit import, or merge.
 A session must have one authoritative catalog owner; do not attach it to both.
 Include catalog identity in caches/events. If a session moves to a Location using
@@ -485,8 +495,10 @@ unused historical import table; it is neither read nor destructively dropped.
 The current filename, application ID, storage version, and plugin/RPC IDs remain
 unchanged so current-format definitions and session bindings remain usable.
 Version suffixes in these identifiers do not promise support for older builds.
-Changing/removing an explicit path override selects a different catalog; it does
-not transfer records. The plugin never moves or merges real catalogs on startup.
+Changing the default or changing/removing an explicit path override selects a
+different catalog; it does not transfer records. Keep an explicit override or
+deliberately transfer a SQLite-consistent backup without overwriting a destination.
+The plugin never moves or merges real catalogs on startup.
 
 Preserve canonical storage paths, transactional writes, cancellation, and clean
 expected errors. Session-binding maintenance must not silently prune live sessions.
@@ -1022,7 +1034,7 @@ request receipts, default catalog storage, compiled server/TUI/RPC
 exports, a standalone tarball, and optional neutral launcher are implemented. The
 opt-in increment adds passive native behavior, explicit `/workspace` activation,
 lazy storage/discovery, active-only indicator reconciliation, guarded helpers, and
-ordinary plugin installation as primary. The single-command/LocalAppData follow-up
+ordinary plugin installation as primary. The single-command/OpenCode-config storage follow-up
 and retirement of earlier unreleased implementations are complete. Duplicate
 registration and unsupported storage formats are documented. Legacy entrypoints,
 import/upgrade/path fallback, and their dedicated tests are removed, with user
