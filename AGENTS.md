@@ -30,7 +30,7 @@ do not invent a host capability or silently change the product contract.
 | Change paths, permissions, or multi-root search | [filesystem](src/server/filesystem), [search](src/server/search), [filesystem tests](tests/server/filesystem.test.ts), [search tests](tests/server/search.test.ts) |
 | Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [hooks](src/server/hooks), [instruction tests](tests/server/instructions.test.ts) |
 | Change menus, browsing, or session navigation | [tui.ts](src/tui.ts), [TUI tests](tests/tui/menu.test.ts) |
-| Change the footer indicator | [indicator.ts](src/tui/indicator.ts), [TUI tests](tests/tui/menu.test.ts) |
+| Change the footer indicator | [indicator/](src/tui/indicator), [label tests](tests/tui/label.test.ts), [TUI tests](tests/tui/menu.test.ts) |
 | Change building, packaging, or the optional launcher | [build.ts](scripts/build.ts), [pack.ts](scripts/pack.ts), [start.ts](scripts/start.ts), [package.json](package.json) |
 | Work on actual-package acceptance | [check-workspaces.ts](scripts/check-workspaces.ts), [verification boundaries](.agents/CONTEXT.md#verification) |
 | Work on historical host probes | [Fixtures](tests/fixtures/phase-zero-plugin), [architecture notes](.agents/ARCHITECTURE.md#build-and-verification-surfaces) |

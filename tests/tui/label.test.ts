@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
-import { INDICATOR_TIMING } from "../../src/shared/limits.ts"
-import { label } from "../../src/tui/indicator.ts"
+import { fitLabel, labelBudget } from "../../src/tui/indicator/label.ts"
 
 const FAMILY = "\u{1F469}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}"
 
@@ -17,16 +16,8 @@ test.each([
   [`${FAMILY}family`, 10, true, `[ws:${FAMILY}f…!]`],
   ["e\u0301tude", 8, true, "[ws:e\u0301…!]"],
 ] as const)("fits %p into %p columns (blocked: %p)", (name, columns, blocked, expected) => {
-  expect(label(name, columns, blocked)).toBe(expected)
+  expect(fitLabel(name, columns, blocked)).toBe(expected)
 })
-
-// The budget is still an inline closure in the indicator; this is its expression verbatim.
-function labelBudget(columns: number) {
-  return Math.min(
-    INDICATOR_TIMING.maxColumns,
-    Math.max(INDICATOR_TIMING.minColumns, Math.floor(columns / 3)),
-  )
-}
 
 test.each([
   [10, 8],

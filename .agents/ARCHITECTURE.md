@@ -19,7 +19,7 @@ OpenCode server
 
 OpenCode TUI
   src/tui.ts -> rpc.ts -> server
-    tui/indicator.ts -> selection RPC + host UI runtime
+    tui/indicator/ -> selection RPC + host UI runtime
 ```
 
 ## Source map
@@ -45,7 +45,7 @@ OpenCode TUI
 | [search/](../src/server/search) | Glob/regex validation (`patterns.ts`), ignore-aware traversal (`walk.ts`), regex worker isolation (`regex-worker.ts`), and multi-root search results with bounded UTF-8 reads (`search.ts`). |
 | [instructions/](../src/server/instructions) | Shared types and `InstructionError` (`types.ts`), per-session delivery and status (`session-instructions.ts`), snapshot lifecycle and mutation preflight (`delivery.ts`), target-to-scope mapping (`scopes.ts`), bounded `AGENTS.md` reads (`sources.ts`), the delivered block (`render.ts`), and patch target parsing (`patch-targets.ts`). |
 | [tui.ts](../src/tui.ts) | Native management menus, folder selection, explicit attachment, new-session navigation, and user-facing errors. |
-| [indicator.ts](../src/tui/indicator.ts) | Session-aware footer rendering, selection reconciliation, cancellation, and listener cleanup. |
+| [indicator/](../src/tui/indicator) | Session-aware footer rendering (`indicator.ts`), selection polling with coalescing, backoff, cancellation, and listener cleanup (`selection-poller.ts`), and grapheme-safe label fitting (`label.ts`). |
 
 Keep domain schemas independent of the host UI and storage. Infrastructure owns
 its filesystem/database mechanics; server composition owns native permissions and
