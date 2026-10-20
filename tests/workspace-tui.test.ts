@@ -174,3 +174,26 @@ test("uncached session metadata never falls back to the launch Location, and unl
   expect(h.unregistered).toBe(1)
   expect(h.calls.every((call) => call.options.signal.aborted)).toBe(true)
 })
+
+test("a second open while a menu is running is ignored", async () => {
+  const h = await setup()
+  const entered = Promise.withResolvers<void>()
+  const selected = Promise.withResolvers<string | undefined>()
+  h.answers.push(() => {
+    entered.resolve()
+    return selected.promise
+  })
+  const running = h.run()
+  await entered.promise
+  const stateCalls = h.calls.filter((call) => call.method === "state").length
+  // The initial refresh and the first loop refresh both run before the menu is shown.
+  expect(stateCalls).toBe(2)
+  await h.run()
+  expect(h.calls.filter((call) => call.method === "state")).toHaveLength(stateCalls)
+  expect(h.selections).toHaveLength(1)
+  selected.resolve(undefined)
+  await running
+  expect(h.calls.filter((call) => call.method === "state")).toHaveLength(stateCalls)
+  expect(h.selections).toHaveLength(1)
+  expect(h.alerts).toEqual([])
+})
