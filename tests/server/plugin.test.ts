@@ -1,9 +1,9 @@
 import { afterEach, expect, spyOn, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { WorkspaceError } from "../src/shared/errors.ts"
-import { Catalog } from "../src/server/catalog/catalog.ts"
-import { workspaceServer } from "./helpers/workspace-server.ts"
+import { WorkspaceError } from "../../src/shared/errors.ts"
+import { Catalog } from "../../src/server/catalog/catalog.ts"
+import { workspaceServer } from "../helpers/workspace-server.ts"
 
 const hosts: Awaited<ReturnType<typeof workspaceServer>>[] = []
 afterEach(async () => {
@@ -376,5 +376,22 @@ test("aborted administrative writes do not initialize storage", async () => {
     ),
   ).rejects.toThrow()
   expect(await fs.exists(path.dirname(h.catalogPath))).toBe(false)
+  expect(h.events).toEqual([])
+})
+
+test("a failing change notification never fails a committed change or the context hook", async () => {
+  const h = await fixture()
+  h.failEvents(new Error("event channel closed"))
+  const created = await h.change({ kind: "create", name: "alpha" })
+  expect((await h.rpc.state()).workspaces.map((workspace) => workspace.name)).toEqual(["alpha"])
+  await h.change({ kind: "attach", workspaceID: created.workspaces[0]!.id }, "ses_a")
+  const event = h.request("ses_a")
+  await h.context(event)
+  expect(event.system).toContainEqual(
+    expect.objectContaining({
+      type: "text",
+      text: expect.stringContaining('Workspace "alpha", pinned revision'),
+    }),
+  )
   expect(h.events).toEqual([])
 })

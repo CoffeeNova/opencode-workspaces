@@ -26,7 +26,7 @@ do not invent a host capability or silently change the product contract.
 | Install or explain the plugin | [README](README.md) |
 | Understand behavior and constraints | [Context](.agents/CONTEXT.md), [architecture](.agents/ARCHITECTURE.md) |
 | Change schemas or the RPC contract | [domain.ts](src/domain.ts), [rpc.ts](src/rpc.ts) |
-| Change storage, selection, or request admission | [index.ts](src/index.ts), [catalog](src/server/catalog), [catalog tests](tests/server/catalog.test.ts), [server tests](tests/workspaces.test.ts) |
+| Change storage, selection, or request admission | [index.ts](src/index.ts), [catalog](src/server/catalog), [catalog tests](tests/server/catalog.test.ts), [server tests](tests/server/plugin.test.ts) |
 | Change paths, permissions, or multi-root search | [filesystem](src/server/filesystem), [search](src/server/search), [filesystem tests](tests/server/filesystem.test.ts), [search tests](tests/server/search.test.ts) |
 | Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [index.ts](src/index.ts), [instruction tests](tests/server/instructions.test.ts) |
 | Change menus, browsing, or session navigation | [tui.ts](src/tui.ts), [TUI tests](tests/workspace-tui.test.ts) |

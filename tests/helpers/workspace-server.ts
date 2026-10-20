@@ -50,6 +50,7 @@ export async function workspaceServer(configured = true) {
   let modelCalls = 0
   let contextLimit = 128_000
   let permissionError: Error | undefined
+  let eventError: Error | undefined
   const registration = () => ({ dispose: async () => {} })
   const context = {
     location: { directory },
@@ -74,6 +75,7 @@ export async function workspaceServer(configured = true) {
           ...registration(),
           events: {
             emit: async (...args: unknown[]) => {
+              if (eventError) throw eventError
               events.push(args)
             },
           },
@@ -189,6 +191,9 @@ export async function workspaceServer(configured = true) {
     },
     denyPermission(error: Error) {
       permissionError = error
+    },
+    failEvents(error: Error) {
+      eventError = error
     },
     async context(event: SessionContext) {
       await sessionHooks.get("context")!(event)
