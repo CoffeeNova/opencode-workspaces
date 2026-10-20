@@ -1372,3 +1372,1788 @@ exports[`error messages 1`] = `
   },
 }
 `;
+
+exports[`tool results 1`] = `
+{
+  "permissions": [
+    {
+      "action": "external_directory",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "external_directory",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "glob",
+      "agent": "build",
+      "resources": [
+        "**/*",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "external_directory",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "grep",
+      "agent": "build",
+      "resources": [
+        "SURFACE",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "read",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs/AGENTS.md",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "read",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs/long.txt",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "read",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs/many.txt",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "read",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs/src/app.ts",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "external_directory",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "grep",
+      "agent": "build",
+      "resources": [
+        "^hit",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+    {
+      "action": "read",
+      "agent": "build",
+      "resources": [
+        "<base>/external docs/many.txt",
+      ],
+      "save": [],
+      "sessionID": "ses_a",
+      "source": {
+        "id": "call_unit",
+        "messageID": "msg_unit",
+        "type": "tool",
+      },
+    },
+  ],
+  "results": {
+    "glob": {
+      "content": "{"files":["external-docs:/AGENTS.md","external-docs:/long.txt","external-docs:/many.txt","external-docs:/src/app.ts"],"roots":[{"alias":"external-docs","status":"complete"}],"truncated":false,"partial":false,"limits":{"results":200,"entriesPerRoot":10000,"grepBytesPerRoot":8388608}}",
+    },
+    "grep": {
+      "content": "{"matches":[{"file":"external-docs:/AGENTS.md","line":1,"text":"SURFACE_ROOT_RULE"},{"file":"external-docs:/long.txt","line":1,"text":"SURFACE xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ... [line truncated]"},{"file":"external-docs:/src/app.ts","line":1,"text":"export const SURFACE = 1"}],"engine":"fs+regex","roots":[{"alias":"external-docs","status":"complete"}],"truncated":false,"partial":false,"limits":{"results":100,"entriesPerRoot":10000,"grepBytesPerRoot":8388608}}",
+    },
+    "grep beyond the result quota": {
+      "content": "{"matches":[{"file":"external-docs:/many.txt","line":1,"text":"hit 1"},{"file":"external-docs:/many.txt","line":2,"text":"hit 2"},{"file":"external-docs:/many.txt","line":3,"text":"hit 3"},{"file":"external-docs:/many.txt","line":4,"text":"hit 4"},{"file":"external-docs:/many.txt","line":5,"text":"hit 5"},{"file":"external-docs:/many.txt","line":6,"text":"hit 6"},{"file":"external-docs:/many.txt","line":7,"text":"hit 7"},{"file":"external-docs:/many.txt","line":8,"text":"hit 8"},{"file":"external-docs:/many.txt","line":9,"text":"hit 9"},{"file":"external-docs:/many.txt","line":10,"text":"hit 10"},{"file":"external-docs:/many.txt","line":11,"text":"hit 11"},{"file":"external-docs:/many.txt","line":12,"text":"hit 12"},{"file":"external-docs:/many.txt","line":13,"text":"hit 13"},{"file":"external-docs:/many.txt","line":14,"text":"hit 14"},{"file":"external-docs:/many.txt","line":15,"text":"hit 15"},{"file":"external-docs:/many.txt","line":16,"text":"hit 16"},{"file":"external-docs:/many.txt","line":17,"text":"hit 17"},{"file":"external-docs:/many.txt","line":18,"text":"hit 18"},{"file":"external-docs:/many.txt","line":19,"text":"hit 19"},{"file":"external-docs:/many.txt","line":20,"text":"hit 20"},{"file":"external-docs:/many.txt","line":21,"text":"hit 21"},{"file":"external-docs:/many.txt","line":22,"text":"hit 22"},{"file":"external-docs:/many.txt","line":23,"text":"hit 23"},{"file":"external-docs:/many.txt","line":24,"text":"hit 24"},{"file":"external-docs:/many.txt","line":25,"text":"hit 25"},{"file":"external-docs:/many.txt","line":26,"text":"hit 26"},{"file":"external-docs:/many.txt","line":27,"text":"hit 27"},{"file":"external-docs:/many.txt","line":28,"text":"hit 28"},{"file":"external-docs:/many.txt","line":29,"text":"hit 29"},{"file":"external-docs:/many.txt","line":30,"text":"hit 30"},{"file":"external-docs:/many.txt","line":31,"text":"hit 31"},{"file":"external-docs:/many.txt","line":32,"text":"hit 32"},{"file":"external-docs:/many.txt","line":33,"text":"hit 33"},{"file":"external-docs:/many.txt","line":34,"text":"hit 34"},{"file":"external-docs:/many.txt","line":35,"text":"hit 35"},{"file":"external-docs:/many.txt","line":36,"text":"hit 36"},{"file":"external-docs:/many.txt","line":37,"text":"hit 37"},{"file":"external-docs:/many.txt","line":38,"text":"hit 38"},{"file":"external-docs:/many.txt","line":39,"text":"hit 39"},{"file":"external-docs:/many.txt","line":40,"text":"hit 40"},{"file":"external-docs:/many.txt","line":41,"text":"hit 41"},{"file":"external-docs:/many.txt","line":42,"text":"hit 42"},{"file":"external-docs:/many.txt","line":43,"text":"hit 43"},{"file":"external-docs:/many.txt","line":44,"text":"hit 44"},{"file":"external-docs:/many.txt","line":45,"text":"hit 45"},{"file":"external-docs:/many.txt","line":46,"text":"hit 46"},{"file":"external-docs:/many.txt","line":47,"text":"hit 47"},{"file":"external-docs:/many.txt","line":48,"text":"hit 48"},{"file":"external-docs:/many.txt","line":49,"text":"hit 49"},{"file":"external-docs:/many.txt","line":50,"text":"hit 50"},{"file":"external-docs:/many.txt","line":51,"text":"hit 51"},{"file":"external-docs:/many.txt","line":52,"text":"hit 52"},{"file":"external-docs:/many.txt","line":53,"text":"hit 53"},{"file":"external-docs:/many.txt","line":54,"text":"hit 54"},{"file":"external-docs:/many.txt","line":55,"text":"hit 55"},{"file":"external-docs:/many.txt","line":56,"text":"hit 56"},{"file":"external-docs:/many.txt","line":57,"text":"hit 57"},{"file":"external-docs:/many.txt","line":58,"text":"hit 58"},{"file":"external-docs:/many.txt","line":59,"text":"hit 59"},{"file":"external-docs:/many.txt","line":60,"text":"hit 60"},{"file":"external-docs:/many.txt","line":61,"text":"hit 61"},{"file":"external-docs:/many.txt","line":62,"text":"hit 62"},{"file":"external-docs:/many.txt","line":63,"text":"hit 63"},{"file":"external-docs:/many.txt","line":64,"text":"hit 64"},{"file":"external-docs:/many.txt","line":65,"text":"hit 65"},{"file":"external-docs:/many.txt","line":66,"text":"hit 66"},{"file":"external-docs:/many.txt","line":67,"text":"hit 67"},{"file":"external-docs:/many.txt","line":68,"text":"hit 68"},{"file":"external-docs:/many.txt","line":69,"text":"hit 69"},{"file":"external-docs:/many.txt","line":70,"text":"hit 70"},{"file":"external-docs:/many.txt","line":71,"text":"hit 71"},{"file":"external-docs:/many.txt","line":72,"text":"hit 72"},{"file":"external-docs:/many.txt","line":73,"text":"hit 73"},{"file":"external-docs:/many.txt","line":74,"text":"hit 74"},{"file":"external-docs:/many.txt","line":75,"text":"hit 75"},{"file":"external-docs:/many.txt","line":76,"text":"hit 76"},{"file":"external-docs:/many.txt","line":77,"text":"hit 77"},{"file":"external-docs:/many.txt","line":78,"text":"hit 78"},{"file":"external-docs:/many.txt","line":79,"text":"hit 79"},{"file":"external-docs:/many.txt","line":80,"text":"hit 80"},{"file":"external-docs:/many.txt","line":81,"text":"hit 81"},{"file":"external-docs:/many.txt","line":82,"text":"hit 82"},{"file":"external-docs:/many.txt","line":83,"text":"hit 83"},{"file":"external-docs:/many.txt","line":84,"text":"hit 84"},{"file":"external-docs:/many.txt","line":85,"text":"hit 85"},{"file":"external-docs:/many.txt","line":86,"text":"hit 86"},{"file":"external-docs:/many.txt","line":87,"text":"hit 87"},{"file":"external-docs:/many.txt","line":88,"text":"hit 88"},{"file":"external-docs:/many.txt","line":89,"text":"hit 89"},{"file":"external-docs:/many.txt","line":90,"text":"hit 90"},{"file":"external-docs:/many.txt","line":91,"text":"hit 91"},{"file":"external-docs:/many.txt","line":92,"text":"hit 92"},{"file":"external-docs:/many.txt","line":93,"text":"hit 93"},{"file":"external-docs:/many.txt","line":94,"text":"hit 94"},{"file":"external-docs:/many.txt","line":95,"text":"hit 95"},{"file":"external-docs:/many.txt","line":96,"text":"hit 96"},{"file":"external-docs:/many.txt","line":97,"text":"hit 97"},{"file":"external-docs:/many.txt","line":98,"text":"hit 98"},{"file":"external-docs:/many.txt","line":99,"text":"hit 99"},{"file":"external-docs:/many.txt","line":100,"text":"hit 100"}],"engine":"fs+regex","roots":[{"alias":"external-docs","status":"truncated"}],"truncated":true,"partial":true,"limits":{"results":100,"entriesPerRoot":10000,"grepBytesPerRoot":8388608}}",
+    },
+    "resolve": {
+      "content": "{"path":"<base>/external docs/src/app.ts","alias":"external-docs"}",
+    },
+    "status": {
+      "content": "{"workspace":{"id":"<uuid>","name":"alpha","revision":2,"roots":[{"alias":"external-docs","path":"<base>/external docs"}]},"sealed":true,"directory":"<base>/launch"}",
+    },
+  },
+}
+`;
+
+exports[`tool results: partial search 1`] = `
+{
+  "content": "{"files":["external-docs:/notes.md"],"roots":[{"alias":"external-docs","status":"complete"},{"alias":"ignored-root","status":"unavailable","code":"IGNORE_TOO_LARGE"},{"alias":"gone-root","status":"unavailable","code":"ENOENT"}],"truncated":false,"partial":true,"limits":{"results":200,"entriesPerRoot":10000,"grepBytesPerRoot":8388608}}",
+}
+`;
+
+exports[`instruction delivery variants 1`] = `
+{
+  "aggregate overflow": {
+    "instructions": "blocked",
+    "preflight": {
+      "code": null,
+      "message": "INSTRUCTIONS_UNAVAILABLE: Aggregate instructions exceed 65536 bytes; Aggregate instructions exceed 65536 bytes",
+      "tag": "Tool.Error",
+    },
+    "system": [
+      "Workspace "alpha", pinned revision 4. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"first-root","path":"<base>/first root"},{"alias":"second-root","path":"<base>/second root"},{"alias":"third-root","path":"<base>/third root"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\first root\\\\AGENTS.md","scope":"<base>/first root","status":"loaded","bytes":30000},{"path":"<base>\\\\second root\\\\AGENTS.md","scope":"<base>/second root","status":"loaded","bytes":30000},{"path":"<base>\\\\third root\\\\AGENTS.md","scope":"<base>/third root","status":"loaded","bytes":30000}],"errors":["Aggregate instructions exceed 65536 bytes"],"delivery":"blocked: no instruction bodies delivered"}",
+    ],
+  },
+  "binary source": {
+    "instructions": "blocked",
+    "preflight": {
+      "code": null,
+      "message": "INSTRUCTIONS_UNAVAILABLE: <base>\\external docs\\AGENTS.md: Binary instruction source; <base>\\external docs\\AGENTS.md: Binary instruction source",
+      "tag": "Tool.Error",
+    },
+    "system": [
+      "Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"error","error":"Binary instruction source"}],"errors":["<base>\\\\external docs\\\\AGENTS.md: Binary instruction source"],"delivery":"blocked: no instruction bodies delivered"}",
+    ],
+  },
+  "invalid UTF-8 source": {
+    "instructions": "blocked",
+    "preflight": {
+      "code": null,
+      "message": "INSTRUCTIONS_UNAVAILABLE: <base>\\external docs\\AGENTS.md: Invalid UTF-8; <base>\\external docs\\AGENTS.md: Invalid UTF-8",
+      "tag": "Tool.Error",
+    },
+    "system": [
+      "Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"error","error":"Invalid UTF-8"}],"errors":["<base>\\\\external docs\\\\AGENTS.md: Invalid UTF-8"],"delivery":"blocked: no instruction bodies delivered"}",
+    ],
+  },
+  "missing source": {
+    "instructions": "ready",
+    "preflight": "completed",
+    "system": [
+      "Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"missing"}],"errors":[],"delivery":"complete scoped source text"}",
+    ],
+  },
+  "non-regular source": {
+    "instructions": "blocked",
+    "preflight": {
+      "code": null,
+      "message": "INSTRUCTIONS_UNAVAILABLE: <base>\\external docs\\AGENTS.md: Instruction source must be an unlinked regular file; <base>\\external docs\\AGENTS.md: Instruction source must be an unlinked regular file",
+      "tag": "Tool.Error",
+    },
+    "system": [
+      "Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"error","error":"Instruction source must be an unlinked regular file"}],"errors":["<base>\\\\external docs\\\\AGENTS.md: Instruction source must be an unlinked regular file"],"delivery":"blocked: no instruction bodies delivered"}",
+    ],
+  },
+  "oversized source": {
+    "instructions": "blocked",
+    "preflight": {
+      "code": null,
+      "message": "INSTRUCTIONS_UNAVAILABLE: <base>\\external docs\\AGENTS.md: File exceeds 32768 bytes; <base>\\external docs\\AGENTS.md: File exceeds 32768 bytes",
+      "tag": "Tool.Error",
+    },
+    "system": [
+      "Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"error","bytes":32769,"error":"File exceeds 32768 bytes"}],"errors":["<base>\\\\external docs\\\\AGENTS.md: File exceeds 32768 bytes"],"delivery":"blocked: no instruction bodies delivered"}",
+    ],
+  },
+  "small model context": {
+    "instructions": "blocked",
+    "preflight": {
+      "code": null,
+      "message": "INSTRUCTIONS_UNAVAILABLE: Model context 32000: instruction budget policy is unverified",
+      "tag": "Tool.Error",
+    },
+    "system": [
+      "Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.",
+      "WORKSPACE_INSTRUCTIONS",
+      "{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"loaded","bytes":18}],"errors":["Model context 32000: instruction budget policy is unverified"],"delivery":"blocked: no instruction bodies delivered"}",
+    ],
+  },
+}
+`;
+
+exports[`name and alias validation 1`] = `
+{
+  "aliases": [
+    [
+      "plain",
+      {
+        "data": "docs",
+      },
+    ],
+    [
+      "digits, dash and underscore",
+      {
+        "data": "my_root-2",
+      },
+    ],
+    [
+      "empty",
+      {
+        "issues": [
+          {
+            "code": "too_small",
+            "inclusive": true,
+            "message": "Too small: expected string to have >=1 characters",
+            "minimum": 1,
+            "origin": "string",
+            "path": [],
+          },
+          {
+            "code": "invalid_format",
+            "format": "regex",
+            "message": "Invalid string: must match pattern /^[a-z0-9_-]+$/",
+            "origin": "string",
+            "path": [],
+            "pattern": "/^[a-z0-9_-]+$/",
+          },
+        ],
+      },
+    ],
+    [
+      "uppercase",
+      {
+        "issues": [
+          {
+            "code": "invalid_format",
+            "format": "regex",
+            "message": "Invalid string: must match pattern /^[a-z0-9_-]+$/",
+            "origin": "string",
+            "path": [],
+            "pattern": "/^[a-z0-9_-]+$/",
+          },
+        ],
+      },
+    ],
+    [
+      "space",
+      {
+        "issues": [
+          {
+            "code": "invalid_format",
+            "format": "regex",
+            "message": "Invalid string: must match pattern /^[a-z0-9_-]+$/",
+            "origin": "string",
+            "path": [],
+            "pattern": "/^[a-z0-9_-]+$/",
+          },
+        ],
+      },
+    ],
+    [
+      "dot",
+      {
+        "issues": [
+          {
+            "code": "invalid_format",
+            "format": "regex",
+            "message": "Invalid string: must match pattern /^[a-z0-9_-]+$/",
+            "origin": "string",
+            "path": [],
+            "pattern": "/^[a-z0-9_-]+$/",
+          },
+        ],
+      },
+    ],
+    [
+      "100 characters",
+      {
+        "data": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+    ],
+    [
+      "101 characters",
+      {
+        "issues": [
+          {
+            "code": "too_big",
+            "inclusive": true,
+            "maximum": 100,
+            "message": "Too big: expected string to have <=100 characters",
+            "origin": "string",
+            "path": [],
+          },
+        ],
+      },
+    ],
+  ],
+  "names": [
+    [
+      "plain",
+      {
+        "data": "alpha",
+      },
+    ],
+    [
+      "padded",
+      {
+        "data": "padded",
+      },
+    ],
+    [
+      "empty",
+      {
+        "issues": [
+          {
+            "code": "too_small",
+            "inclusive": true,
+            "message": "Too small: expected string to have >=1 characters",
+            "minimum": 1,
+            "origin": "string",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "blank",
+      {
+        "issues": [
+          {
+            "code": "too_small",
+            "inclusive": true,
+            "message": "Too small: expected string to have >=1 characters",
+            "minimum": 1,
+            "origin": "string",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "tab inside",
+      {
+        "issues": [
+          {
+            "code": "custom",
+            "message": "Use a printable, non-reserved name",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "DEL inside",
+      {
+        "issues": [
+          {
+            "code": "custom",
+            "message": "Use a printable, non-reserved name",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "__proto__",
+      {
+        "issues": [
+          {
+            "code": "custom",
+            "message": "Use a printable, non-reserved name",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "Prototype",
+      {
+        "issues": [
+          {
+            "code": "custom",
+            "message": "Use a printable, non-reserved name",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "CONSTRUCTOR",
+      {
+        "issues": [
+          {
+            "code": "custom",
+            "message": "Use a printable, non-reserved name",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "padded reserved word",
+      {
+        "issues": [
+          {
+            "code": "custom",
+            "message": "Use a printable, non-reserved name",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "100 characters",
+      {
+        "data": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      },
+    ],
+    [
+      "101 characters",
+      {
+        "issues": [
+          {
+            "code": "too_big",
+            "inclusive": true,
+            "maximum": 100,
+            "message": "Too big: expected string to have <=100 characters",
+            "origin": "string",
+            "path": [],
+          },
+        ],
+      },
+    ],
+    [
+      "non-ASCII",
+      {
+        "data": "ünïcode ✓",
+      },
+    ],
+  ],
+}
+`;
+
+exports[`error messages: administration 1`] = `
+{
+  "active": {
+    "addRoot beyond the folder limit": {
+      "code": "ROOT_LIMIT",
+      "message": "ROOT_LIMIT: A workspace supports at most 20 folders",
+      "tag": null,
+    },
+    "addRoot of a file": {
+      "code": "NOT_DIRECTORY",
+      "message": "NOT_DIRECTORY: <base>/external docs/AGENTS.md",
+      "tag": null,
+    },
+    "addRoot of a missing folder": {
+      "code": "ENOENT",
+      "message": "ENOENT: Workspace path or catalog is unavailable; reopen /workspace after correcting it",
+      "tag": null,
+    },
+    "addRoot of a sensitive folder": {
+      "code": "DENIED_PATH",
+      "message": "DENIED_PATH: Sensitive workspace paths are blocked",
+      "tag": null,
+    },
+    "attach without a session": {
+      "code": "SESSION_REQUIRED",
+      "message": "SESSION_REQUIRED: Select an empty session first",
+      "tag": null,
+    },
+    "remove an unknown workspace": {
+      "code": "UNKNOWN_WORKSPACE",
+      "message": "UNKNOWN_WORKSPACE: Saved workspace no longer exists",
+      "tag": null,
+    },
+    "removeRoot with an unknown alias": {
+      "code": "UNKNOWN_ROOT",
+      "message": "UNKNOWN_ROOT: Folder registration no longer exists",
+      "tag": null,
+    },
+    "state of a session in another Location": {
+      "code": "LOCATION_MISMATCH",
+      "message": "LOCATION_MISMATCH: Reopen workspace management in the session's own Location",
+      "tag": null,
+    },
+  },
+  "fresh": {
+    "detach before the catalog exists": {
+      "code": "CATALOG_UNAVAILABLE",
+      "message": "CATALOG_UNAVAILABLE: The workspace catalog is missing; restore it before using an existing workspace session",
+      "tag": null,
+    },
+    "state during unload": {
+      "code": "PLUGIN_DISPOSED",
+      "message": "PLUGIN_DISPOSED: Workspace plugin was unloaded",
+      "tag": null,
+    },
+  },
+}
+`;
+
+exports[`error messages: catalog storage 1`] = `
+{
+  "blank catalogPath option": {
+    "code": null,
+    "message": "options.catalogPath must be a non-empty .sqlite path",
+    "tag": null,
+  },
+  "catalog file that is not SQLite": {
+    "code": "SQLITE_NOTADB",
+    "message": "SQLITE_NOTADB: Workspace path or catalog is unavailable; reopen /workspace after correcting it",
+    "tag": null,
+  },
+  "catalog path that is a folder": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: Catalog must be a regular unlinked file",
+    "tag": null,
+  },
+  "catalog without the .sqlite extension": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: Workspace catalogs require a .sqlite path",
+    "tag": null,
+  },
+  "foreign SQLite database": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: This is not a workspace catalog; nothing was overwritten",
+    "tag": null,
+  },
+  "invalid catalog metadata": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: Invalid catalog metadata",
+    "tag": null,
+  },
+  "invalid session binding": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: Invalid session binding",
+    "tag": null,
+  },
+  "invalid stored workspace": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: Invalid stored workspace; nothing was overwritten",
+    "tag": null,
+  },
+  "unsupported storage version": {
+    "code": "INVALID_REGISTRY",
+    "message": "INVALID_REGISTRY: Unsupported catalog storage version 3; expected 2",
+    "tag": null,
+  },
+}
+`;
+
+exports[`error messages: bindings and limits 1`] = `
+{
+  "limits": {
+    "attach beyond 10000 bindings": {
+      "code": "REGISTRY_FULL",
+      "message": "REGISTRY_FULL: Session catalog maintenance is required",
+      "tag": null,
+    },
+    "create beyond 1000 workspaces": {
+      "code": "REGISTRY_FULL",
+      "message": "REGISTRY_FULL: Workspace limit reached",
+      "tag": null,
+    },
+  },
+  "location": {
+    "attach over a binding from another Location": {
+      "code": "LOCATION_MISMATCH",
+      "message": "LOCATION_MISMATCH: Session Location changed",
+      "tag": null,
+    },
+    "selection of a binding from another Location": {
+      "code": "LOCATION_MISMATCH",
+      "message": "LOCATION_MISMATCH: This binding belongs to the session's original Location",
+      "tag": null,
+    },
+  },
+  "lost": {
+    "selection after a known active binding vanished": {
+      "code": "BINDING_UNAVAILABLE",
+      "message": "BINDING_UNAVAILABLE: This session's active binding cannot be confirmed; restore its catalog before continuing workspace work",
+      "tag": null,
+    },
+    "workspace_status after its binding vanished": {
+      "code": null,
+      "message": "BINDING_UNAVAILABLE: The active workspace binding disappeared; restore its catalog before continuing",
+      "tag": "Tool.Error",
+    },
+  },
+}
+`;
+
+exports[`error messages: tools and native preflight 1`] = `
+{
+  "native patch with unsupported framing": {
+    "code": null,
+    "message": "UNSUPPORTED_TARGET: Unsupported patch framing; use plain native absolute-path sections",
+    "tag": "Tool.Error",
+  },
+  "native read after the root became a link": {
+    "code": null,
+    "message": "ROOT_CHANGED: <base>/external docs",
+    "tag": "Tool.Error",
+  },
+  "native read of a drive-relative path": {
+    "code": null,
+    "message": "INVALID_PATH: Use an absolute drive path",
+    "tag": "Tool.Error",
+  },
+  "native read of a reserved Windows name": {
+    "code": null,
+    "message": "INVALID_PATH: Reserved Windows path component or alternate data stream",
+    "tag": "Tool.Error",
+  },
+  "native read through a linked folder": {
+    "code": null,
+    "message": "OUTSIDE_ROOT: Linked targets require explicit canonical registration",
+    "tag": "Tool.Error",
+  },
+  "native read with a control character": {
+    "code": null,
+    "message": "INVALID_PATH: Empty, control-character, or device path",
+    "tag": "Tool.Error",
+  },
+  "native shell without a workdir": {
+    "code": null,
+    "message": "INVALID_PATH: An explicit native path or shell workdir is required",
+    "tag": "Tool.Error",
+  },
+  "native write after compaction": {
+    "code": null,
+    "message": "INSTRUCTIONS_REQUIRED: No current generating request snapshot; prepare scopes and request again",
+    "tag": "Tool.Error",
+  },
+  "native write after its instructions changed": {
+    "code": null,
+    "message": "INSTRUCTIONS_REQUIRED: Read/prepare <base>\\external docs\\AGENTS.md, then regenerate the mutation with fresh scoped instructions",
+    "tag": "Tool.Error",
+  },
+  "native write before any workspace request": {
+    "code": null,
+    "message": "INSTRUCTIONS_REQUIRED: A fresh workspace request is required before native tools",
+    "tag": "Tool.Error",
+  },
+  "native write of a sensitive file": {
+    "code": null,
+    "message": "DENIED_PATH: Sensitive workspace paths are blocked",
+    "tag": "Tool.Error",
+  },
+  "native write with an unverified small context": {
+    "code": null,
+    "message": "INSTRUCTIONS_UNAVAILABLE: Model context 32000: instruction budget policy is unverified",
+    "tag": "Tool.Error",
+  },
+  "workspace_glob with an unknown alias": {
+    "code": null,
+    "message": "UNKNOWN_ALIAS: Unknown root alias in this session's pinned workspace",
+    "tag": "Tool.Error",
+  },
+  "workspace_glob with conflicting aliases": {
+    "code": null,
+    "message": "INVALID_PATTERN: Pattern alias and alias argument disagree",
+    "tag": "Tool.Error",
+  },
+  "workspace_glob with invalid arguments": {
+    "code": null,
+    "message": "INVALID_PATTERN: invalid workspace search arguments",
+    "tag": "Tool.Error",
+  },
+  "workspace_glob with parent traversal": {
+    "code": null,
+    "message": "INVALID_PATTERN: Use a relative glob without parent traversal",
+    "tag": "Tool.Error",
+  },
+  "workspace_grep with a NUL character": {
+    "code": null,
+    "message": "INVALID_PATTERN: Regex must be 1-4096 characters, without NUL",
+    "tag": "Tool.Error",
+  },
+  "workspace_grep with an invalid regex": {
+    "code": null,
+    "message": "INVALID_PATTERN: Invalid JavaScript regular expression",
+    "tag": "Tool.Error",
+  },
+  "workspace_resolve with alias traversal": {
+    "code": null,
+    "message": "OUTSIDE_ROOT: alias traversal is not allowed",
+    "tag": "Tool.Error",
+  },
+  "workspace_resolve without a path": {
+    "code": null,
+    "message": [
+      "[",
+      "  {",
+      "    "expected": "string",",
+      "    "code": "invalid_type",",
+      "    "path": [",
+      "      "path"",
+      "    ],",
+      "    "message": "Invalid input: expected string, received undefined"",
+      "  }",
+      "]",
+    ],
+    "tag": null,
+  },
+}
+`;
+
+exports[`error messages: instruction scope limit 1`] = `
+{
+  "instructions": "blocked",
+  "request": {
+    "code": "INSTRUCTIONS_UNAVAILABLE",
+    "message": "INSTRUCTIONS_UNAVAILABLE: Instruction scope limit exceeded",
+    "tag": null,
+  },
+}
+`;
+
+exports[`console warnings 1`] = `
+[
+  [
+    "[workspace-manager] Binding resolution unavailable for ses_a: INVALID_REGISTRY: Catalog must be a regular unlinked file. Known active sessions fail closed; an undiscovered session retains native behavior, not a confirmed passive binding. Reopen /workspace after restoring catalog access.",
+  ],
+  [
+    "[workspace-manager] Session admission capacity reached; further attachment is disabled until plugin reload. Native passive sessions remain unchanged.",
+  ],
+]
+`;
+
+exports[`menu: unavailable session metadata 1`] = `
+[
+  {
+    "kind": "alert",
+    "message": "Session metadata is loading; reopen Workspace shortly",
+    "title": "Workspace unavailable",
+  },
+]
+`;
+
+exports[`menu: empty catalog 1`] = `
+[
+  {
+    "kind": "alert",
+    "message": "Create a workspace first, then add folders.",
+    "title": "No saved workspaces",
+  },
+  {
+    "kind": "alert",
+    "message": "Create a workspace first, then add folders.",
+    "title": "No saved workspaces",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+  {
+    "kind": "alert",
+    "message": "No saved workspace has folders to remove.",
+    "title": "No saved workspaces",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+]
+`;
+
+exports[`menu: invalid name 1`] = `
+[
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+  {
+    "kind": "prompt",
+    "title": "Workspace name",
+  },
+  {
+    "kind": "alert",
+    "message": "Use a printable name of 1–100 characters, without reserved object-property names.",
+    "title": "Invalid name",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+]
+`;
+
+exports[`menu: folder errors 1`] = `
+[
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "0 folders",
+        "title": "alpha",
+        "value": "<uuid>",
+      },
+    ],
+    "title": "Saved workspaces",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+    ],
+    "placeholder": "<base>/launch",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Server filesystem; supports spaces, ~ and $HOME. Browsing does not add a folder.",
+    "kind": "prompt",
+    "placeholder": "<base>/launch",
+    "title": "Server folder path",
+  },
+  {
+    "kind": "alert",
+    "message": "ENOENT: Workspace path or catalog is unavailable; reopen /workspace after correcting it",
+    "title": "Folder unavailable",
+  },
+  {
+    "kind": "prompt",
+    "title": "Server folder path",
+    "value": "<base>\\missing",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+      {
+        "title": "nested/",
+        "value": "<base>/external docs/nested",
+      },
+    ],
+    "placeholder": "<base>/external docs",
+    "title": "Add folder · alpha",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>/external docs",
+      },
+    ],
+    "placeholder": "<base>/external docs/nested",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Lowercase letters, digits, - or _. Saved edits do not retarget existing sessions.",
+    "kind": "prompt",
+    "title": "Folder alias",
+    "value": "nested",
+  },
+  {
+    "kind": "alert",
+    "message": "Use lowercase letters, digits, - or _. The folder path has been preserved.",
+    "title": "Invalid alias",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>/external docs",
+      },
+    ],
+    "placeholder": "<base>/external docs/nested",
+    "title": "Add folder · alpha",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "1 folders",
+        "title": "alpha",
+        "value": "<uuid>",
+      },
+    ],
+    "title": "Saved workspaces",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+    ],
+    "placeholder": "<base>/launch",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Server filesystem; supports spaces, ~ and $HOME. Browsing does not add a folder.",
+    "kind": "prompt",
+    "placeholder": "<base>/launch",
+    "title": "Server folder path",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+      {
+        "title": "nested/",
+        "value": "<base>/external docs/nested",
+      },
+    ],
+    "placeholder": "<base>/external docs",
+    "title": "Add folder · alpha",
+  },
+  {
+    "kind": "alert",
+    "message": "This canonical folder is already registered in the saved workspace.",
+    "title": "Already added",
+  },
+]
+`;
+
+exports[`menu: bound empty session 1`] = `
+[
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "title": "Detach from this empty session",
+        "value": "detach",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "1 folders",
+    "title": "Workspace · alpha",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+    ],
+    "placeholder": "<base>/launch",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Server filesystem; supports spaces, ~ and $HOME. Browsing does not add a folder.",
+    "kind": "prompt",
+    "placeholder": "<base>/launch",
+    "title": "Server folder path",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+    ],
+    "placeholder": "<base>/second",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Lowercase letters, digits, - or _. Saved edits do not retarget existing sessions.",
+    "kind": "prompt",
+    "title": "Folder alias",
+    "value": "second",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Use updated folders in this empty session",
+        "value": "apply",
+      },
+      {
+        "title": "Keep current session unchanged",
+        "value": "keep",
+      },
+    ],
+    "placeholder": "Existing session roots are unchanged until you explicitly apply the saved definition.",
+    "title": "Folder saved",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "title": "Detach from this empty session",
+        "value": "detach",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "2 folders",
+    "title": "Workspace · alpha",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "<base>/external docs",
+        "title": "external-docs",
+        "value": "external-docs",
+      },
+      {
+        "description": "<base>/second",
+        "title": "second",
+        "value": "second",
+      },
+    ],
+    "title": "Remove folder · alpha",
+  },
+  {
+    "kind": "confirm",
+    "message": "Remove this saved folder registration only. Existing sessions and files are unchanged.",
+    "title": "Remove second?",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "title": "Detach from this empty session",
+        "value": "detach",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "2 folders",
+    "title": "Workspace · alpha",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+]
+`;
+
+exports[`menu: started session 1`] = `
+{
+  "sessions": {
+    "created": [
+      {
+        "id": "ses_created_1",
+        "input": {
+          "location": {
+            "directory": "<base>/launch",
+          },
+        },
+      },
+      {
+        "id": "ses_created_2",
+        "input": {
+          "location": {
+            "directory": "<base>/launch",
+          },
+          "title": "Workspace: alpha",
+        },
+      },
+    ],
+    "navigations": [
+      {
+        "sessionID": "ses_created_1",
+        "type": "session",
+      },
+      {
+        "sessionID": "ses_created_2",
+        "type": "session",
+      },
+    ],
+  },
+  "transcript": [
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Switch / open workspace",
+          "value": "switch",
+        },
+        {
+          "title": "Create workspace",
+          "value": "create",
+        },
+        {
+          "title": "Add folder to saved workspace",
+          "value": "add",
+        },
+        {
+          "title": "Remove folder registration",
+          "value": "root",
+        },
+        {
+          "title": "Show status",
+          "value": "status",
+        },
+        {
+          "title": "Open new ordinary session (detach)",
+          "value": "detach",
+        },
+        {
+          "category": "Saved definitions",
+          "title": "Delete saved definition",
+          "value": "delete",
+        },
+      ],
+      "placeholder": "1 folders · fixed for this session",
+      "title": "Workspace · alpha",
+    },
+    {
+      "kind": "alert",
+      "message": [
+        "alpha · pinned revision 2",
+        "external-docs:/ → <base>/external docs",
+        "",
+        "Selection is fixed. Switch or apply saved changes in a new session.",
+        "Saved definition is revision 3; this session retains revision 2.",
+        "Instructions: Ready at the last model request.",
+      ],
+      "title": "Workspace status",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Switch / open workspace",
+          "value": "switch",
+        },
+        {
+          "title": "Create workspace",
+          "value": "create",
+        },
+        {
+          "title": "Add folder to saved workspace",
+          "value": "add",
+        },
+        {
+          "title": "Remove folder registration",
+          "value": "root",
+        },
+        {
+          "title": "Show status",
+          "value": "status",
+        },
+        {
+          "title": "Open new ordinary session (detach)",
+          "value": "detach",
+        },
+        {
+          "category": "Saved definitions",
+          "title": "Delete saved definition",
+          "value": "delete",
+        },
+      ],
+      "placeholder": "1 folders · fixed for this session",
+      "title": "Workspace · alpha",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+          "title": "Add current folder",
+          "value": "add",
+        },
+        {
+          "title": "Paste path manually",
+          "value": "paste",
+        },
+        {
+          "title": "..",
+          "value": "<base>",
+        },
+      ],
+      "placeholder": "<base>/launch",
+      "title": "Add folder · alpha",
+    },
+    {
+      "description": "Server filesystem; supports spaces, ~ and $HOME. Browsing does not add a folder.",
+      "kind": "prompt",
+      "placeholder": "<base>/launch",
+      "title": "Server folder path",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+          "title": "Add current folder",
+          "value": "add",
+        },
+        {
+          "title": "Paste path manually",
+          "value": "paste",
+        },
+        {
+          "title": "..",
+          "value": "<base>",
+        },
+      ],
+      "placeholder": "<base>/third",
+      "title": "Add folder · alpha",
+    },
+    {
+      "description": "Lowercase letters, digits, - or _. Saved edits do not retarget existing sessions.",
+      "kind": "prompt",
+      "title": "Folder alias",
+      "value": "third",
+    },
+    {
+      "kind": "toast",
+      "message": "Workspace saved",
+      "variant": "success",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Open updated workspace in new session",
+          "value": "apply",
+        },
+        {
+          "title": "Keep current session unchanged",
+          "value": "keep",
+        },
+      ],
+      "placeholder": "Existing session roots are unchanged until you explicitly apply the saved definition.",
+      "title": "Folder saved",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Switch / open workspace",
+          "value": "switch",
+        },
+        {
+          "title": "Create workspace",
+          "value": "create",
+        },
+        {
+          "title": "Add folder to saved workspace",
+          "value": "add",
+        },
+        {
+          "title": "Remove folder registration",
+          "value": "root",
+        },
+        {
+          "title": "Show status",
+          "value": "status",
+        },
+        {
+          "title": "Open new ordinary session (detach)",
+          "value": "detach",
+        },
+        {
+          "category": "Saved definitions",
+          "title": "Delete saved definition",
+          "value": "delete",
+        },
+      ],
+      "placeholder": "1 folders · fixed for this session",
+      "title": "Workspace · alpha",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Switch / open workspace",
+          "value": "switch",
+        },
+        {
+          "title": "Create workspace",
+          "value": "create",
+        },
+        {
+          "title": "Add folder to saved workspace",
+          "value": "add",
+        },
+        {
+          "title": "Remove folder registration",
+          "value": "root",
+        },
+        {
+          "title": "Show status",
+          "value": "status",
+        },
+        {
+          "title": "Open new ordinary session (detach)",
+          "value": "detach",
+        },
+        {
+          "category": "Saved definitions",
+          "title": "Delete saved definition",
+          "value": "delete",
+        },
+      ],
+      "placeholder": "1 folders · fixed for this session",
+      "title": "Workspace · alpha",
+    },
+    {
+      "current": "<uuid>",
+      "kind": "select",
+      "options": [
+        {
+          "description": "3 folders",
+          "title": "alpha",
+          "value": "<uuid>",
+        },
+      ],
+      "title": "Saved workspaces",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Open in new session",
+          "value": "new",
+        },
+      ],
+      "placeholder": "This session has started or cannot be safely attached. Its context stays unchanged; open the saved workspace in a new empty session.",
+      "title": "alpha",
+    },
+    {
+      "kind": "toast",
+      "message": "Workspace saved",
+      "variant": "success",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Create workspace",
+          "value": "create",
+        },
+        {
+          "title": "Show status",
+          "value": "status",
+        },
+        {
+          "title": "Open new ordinary session (detach)",
+          "value": "detach",
+        },
+      ],
+      "placeholder": "1 folders · fixed for this session",
+      "title": "Workspace · alpha",
+    },
+    {
+      "kind": "alert",
+      "message": [
+        "alpha · pinned revision 2",
+        "external-docs:/ → <base>/external docs",
+        "",
+        "Selection is fixed. Switch or apply saved changes in a new session.",
+        "Saved definition was deleted; this session retains its pinned folders.",
+        "Instructions: Blocked at the last request; check source/budget or permission errors.",
+      ],
+      "title": "Workspace status",
+    },
+    {
+      "kind": "select",
+      "options": [
+        {
+          "title": "Create workspace",
+          "value": "create",
+        },
+        {
+          "title": "Show status",
+          "value": "status",
+        },
+        {
+          "title": "Open new ordinary session (detach)",
+          "value": "detach",
+        },
+      ],
+      "placeholder": "1 folders · fixed for this session",
+      "title": "Workspace · alpha",
+    },
+  ],
+}
+`;
+
+exports[`menu: action stopped 1`] = `
+[
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+  {
+    "kind": "prompt",
+    "title": "Workspace name",
+  },
+  {
+    "kind": "alert",
+    "message": [
+      "REVISION_CONFLICT: Workspace data changed; reopen the menu",
+      "Reopen the menu to reconcile saved state; do not blindly repeat a timed-out mutation.",
+    ],
+    "title": "Workspace action stopped",
+  },
+]
+`;
