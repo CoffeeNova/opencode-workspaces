@@ -1,55 +1,61 @@
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
+import { HOST_EXTERNALS } from "./lib/externals.ts"
+
+const ENTRYPOINTS = ["index.ts", "tui.ts", "rpc.ts"]
+const EXPORTS = { ".": "./index.js", "./tui": "./tui.js", "./rpc": "./rpc.js" }
 
 const root = path.resolve(import.meta.dir, "..")
 const output = path.join(root, "dist")
+
 const Versions = z.record(z.string(), z.string())
-const manifest = z
-  .object({
-    name: z.string(),
-    version: z.string(),
-    description: z.string(),
-    engines: Versions,
-    dependencies: Versions,
-    peerDependencies: Versions,
-  })
-  .parse(await Bun.file(path.join(root, "package.json")).json())
-const result = await Bun.build({
-  entrypoints: ["index.ts", "tui.ts", "rpc.ts"].map((file) => path.join(root, "src", file)),
-  outdir: output,
-  target: "bun",
-  format: "esm",
-  splitting: true,
-  sourcemap: "external",
-  external: [
-    "@opencode/plugin",
-    "@opencode/plugin/*",
-    "@opentui/core",
-    "@opentui/solid",
-    "@opentui/solid/*",
-    "solid-js",
-    "solid-js/*",
-  ],
+const Manifest = z.object({
+  name: z.string(),
+  version: z.string(),
+  description: z.string(),
+  engines: Versions,
+  dependencies: Versions,
+  peerDependencies: Versions,
 })
-if (!result.success) throw new AggregateError(result.logs, "Workspace package build failed")
-await fs.writeFile(
-  path.join(output, "package.json"),
-  JSON.stringify(
-    {
-      name: manifest.name,
-      version: manifest.version,
-      description: manifest.description,
-      type: "module",
-      exports: { ".": "./index.js", "./tui": "./tui.js", "./rpc": "./rpc.js" },
-      engines: manifest.engines,
-      dependencies: manifest.dependencies,
-      peerDependencies: manifest.peerDependencies,
-      files: [...result.outputs.map((file) => path.basename(file.path)), "README.md"],
-    },
-    null,
-    2,
-  ) + "\n",
-)
+
+async function readManifest() {
+  const source = await Bun.file(path.join(root, "package.json")).json()
+  return Manifest.parse(source)
+}
+
+async function bundle() {
+  const result = await Bun.build({
+    entrypoints: ENTRYPOINTS.map((file) => path.join(root, "src", file)),
+    outdir: output,
+    target: "bun",
+    format: "esm",
+    splitting: true,
+    sourcemap: "external",
+    external: HOST_EXTERNALS,
+  })
+  if (!result.success) throw new AggregateError(result.logs, "Workspace package build failed")
+  return result
+}
+
+function distManifest(manifest: z.infer<typeof Manifest>, files: string[]) {
+  return {
+    name: manifest.name,
+    version: manifest.version,
+    description: manifest.description,
+    type: "module",
+    exports: EXPORTS,
+    engines: manifest.engines,
+    dependencies: manifest.dependencies,
+    peerDependencies: manifest.peerDependencies,
+    files: [...files, "README.md"],
+  }
+}
+
+const manifest = await readManifest()
+const result = await bundle()
+const outputNames = result.outputs.map((file) => path.basename(file.path))
+const packageJson = JSON.stringify(distManifest(manifest, outputNames), null, 2) + "\n"
+await fs.writeFile(path.join(output, "package.json"), packageJson)
 await fs.copyFile(path.join(root, "README.md"), path.join(output, "README.md"))
 console.log(`Built OpenCode server/TUI/RPC package: ${output}`)

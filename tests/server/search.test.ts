@@ -13,7 +13,7 @@ import {
 import { RegexMatcher } from "../../src/server/search/regex-worker.ts"
 import { walk } from "../../src/server/search/walk.ts"
 import { WorkspaceError } from "../../src/shared/errors.ts"
-import { fixture, unix } from "../helpers/filesystem-fixture.ts"
+import { fixture, linkDirectory, unix } from "../helpers/filesystem-fixture.ts"
 
 let h: Awaited<ReturnType<typeof fixture>>
 beforeEach(async () => {
@@ -37,6 +37,13 @@ describe("session workspace search service", () => {
   function search(input: SearchInput): Promise<SearchResult>
   function search(input: SearchInput) {
     return searchWorkspace(inputRoots(), input, access())
+  }
+  // Runs a search whose native "read" permission check calls `onRead`.
+  function searchWithRead(input: SearchInput, onRead: () => void) {
+    const assert = async (action: string) => {
+      if (action === "read") onRead()
+    }
+    return searchWorkspace(inputRoots(), input, { ...access(), assert })
   }
 
   test("shares bounded quotas fairly, distinguishes duplicate names, and supports alias filters", async () => {
@@ -79,11 +86,7 @@ describe("session workspace search service", () => {
     await h.write(h.docs, "binary.txt", Buffer.from("needle\0binary"))
     await h.write(h.docs, "large.txt", "needle" + "x".repeat(200 * 1024))
     await h.write(h.outside, "secret.txt", "needle SECRET")
-    await fs.symlink(
-      h.outside,
-      path.join(h.docs, "linked"),
-      process.platform === "win32" ? "junction" : "dir",
-    )
+    await linkDirectory(h.outside, path.join(h.docs, "linked"))
     const result = await search({ kind: "grep", pattern: "needle", exclude: ["excluded.txt"] })
     expect(result.matches).toEqual([{ file: "docs:/sub/keep.log", line: 1, text: "needle kept" }])
     expect(result.partial).toBe(false)
@@ -124,47 +127,25 @@ describe("session workspace search service", () => {
   test("keeps permission rejection and cancellation as control flow and validates patterns", async () => {
     await h.write(h.src, "file.txt", "needle")
     const rejection = Object.assign(new Error("native read denied"), { code: "EACCES" })
-    await expect(
-      searchWorkspace(
-        inputRoots(),
-        { kind: "grep", pattern: "needle" },
-        {
-          ...access(),
-          assert: async (action) => {
-            if (action === "read") throw rejection
-          },
-        },
-      ),
-    ).rejects.toBe(rejection)
+    const denyRead = () => {
+      throw rejection
+    }
+    await expect(searchWithRead({ kind: "grep", pattern: "needle" }, denyRead)).rejects.toBe(
+      rejection,
+    )
     await h.write(h.docs, ".gitignore", "ignored.txt\n")
     const missingPermission = Object.assign(new Error("native permission rejection"), {
       code: "ENOENT",
     })
-    await expect(
-      searchWorkspace(
-        inputRoots(),
-        { kind: "glob", pattern: "**/*" },
-        {
-          ...access(),
-          assert: async (action) => {
-            if (action === "read") throw missingPermission
-          },
-        },
-      ),
-    ).rejects.toBe(missingPermission)
+    const denyMissing = () => {
+      throw missingPermission
+    }
+    await expect(searchWithRead({ kind: "glob", pattern: "**/*" }, denyMissing)).rejects.toBe(
+      missingPermission,
+    )
     const abort = new Error("cancelled search")
-    await expect(
-      searchWorkspace(
-        inputRoots(),
-        { kind: "grep", pattern: "needle" },
-        {
-          ...access(),
-          assert: async (action) => {
-            if (action === "read") h.controller.abort(abort)
-          },
-        },
-      ),
-    ).rejects.toBe(abort)
+    const cancel = () => h.controller.abort(abort)
+    await expect(searchWithRead({ kind: "grep", pattern: "needle" }, cancel)).rejects.toBe(abort)
     h.controller = new AbortController()
     for (const input of [
       { kind: "glob", pattern: "../**" },

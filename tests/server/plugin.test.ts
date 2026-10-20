@@ -2,6 +2,7 @@ import { afterEach, expect, spyOn, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { WorkspaceError } from "../../src/shared/errors.ts"
+import type { Change } from "../../src/shared/schemas.ts"
 import { Catalog } from "../../src/server/catalog/catalog.ts"
 import { workspaceServer } from "../helpers/workspace-server.ts"
 
@@ -13,6 +14,16 @@ async function fixture(configured = true) {
   const host = await workspaceServer(configured)
   hosts.push(host)
   return host
+}
+
+type Host = Awaited<ReturnType<typeof workspaceServer>>
+type EntryKind = "context" | "tool" | "compaction"
+
+// Starts the session-entry hook for `kind` without awaiting its metadata lookup.
+function startEntry(h: Host, kind: EntryKind, event: ReturnType<Host["request"]>) {
+  if (kind === "context") return h.context(event)
+  if (kind === "tool") return h.before("read", { path: "native-path" })
+  return Promise.resolve(h.compact(event))
 }
 
 test("startup, passive requests and menu reads leave native behavior and missing storage untouched", async () => {
@@ -195,22 +206,16 @@ test.each(["context", "tool", "compaction"] as const)(
       return existing(raw, base)
     })
     const event = h.request()
-    const request =
-      kind === "context"
-        ? h.context(event)
-        : kind === "tool"
-          ? h.before("read", { path: "native-path" })
-          : Promise.resolve(h.compact(event))
+    const request = startEntry(h, kind, event)
     try {
       if (kind !== "compaction") await entered.promise
-      await expect(
-        h.rpc.change({
-          requestID: crypto.randomUUID(),
-          expectedRevision: seeded.revision,
-          sessionID: "ses_a",
-          action: { kind: "attach", workspaceID: seeded.workspaces[0]!.id },
-        }),
-      ).rejects.toThrow("SESSION_STARTED")
+      const attach = {
+        requestID: crypto.randomUUID(),
+        expectedRevision: seeded.revision,
+        sessionID: "ses_a",
+        action: { kind: "attach", workspaceID: seeded.workspaces[0]!.id },
+      } satisfies Change
+      await expect(h.rpc.change(attach)).rejects.toThrow("SESSION_STARTED")
       expect(h.bindingCount()).toBe(0)
     } finally {
       release.resolve()

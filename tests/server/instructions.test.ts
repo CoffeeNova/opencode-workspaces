@@ -1,11 +1,15 @@
 import { afterEach, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
-import { tmpdir } from "node:os"
 import path from "node:path"
 import { createInstructionDelivery } from "../../src/server/instructions/delivery.ts"
 import type { DeliveredSource } from "../../src/server/instructions/types.ts"
 import { patchTargets } from "../../src/server/instructions/patch-targets.ts"
 import { instructionBlock } from "../../src/server/instructions/render.ts"
+import { createTempBase, linkDirectory } from "../helpers/filesystem-fixture.ts"
+
+function patchText(...lines: string[]) {
+  return ["*** Begin Patch", ...lines, "*** End Patch"].join("\n")
+}
 
 const sourceContent = (source: DeliveredSource | undefined) =>
   source && "content" in source ? source.content : undefined
@@ -16,11 +20,7 @@ afterEach(async () => {
     await fs.rm(directory, { recursive: true, force: true })
 })
 async function fixture(overlap = false) {
-  const parent = path.join(tmpdir(), "opencode")
-  await fs.mkdir(parent, { recursive: true })
-  const base = await fs.realpath(
-    await fs.mkdtemp(path.join(parent, "workspace-instructions-test-")),
-  )
+  const base = await createTempBase("workspace-instructions-test-")
   fixtures.push(base)
   const a = path.join(base, "a")
   const b = path.join(base, "b")
@@ -97,9 +97,14 @@ test("one undisclosed target rejects a whole multi-root patch including both ren
   const f = await fixture()
   const delivery = createInstructionDelivery(f.roots, async () => {})
   await delivery.capture()
-  const targets = patchTargets(
-    `*** Begin Patch\n*** Update File: ${path.join(f.a, "old.txt")}\n*** Move to: ${path.join(f.b, "src", "new.txt")}\n@@\n-old\n+new\n*** End Patch`,
+  const patch = patchText(
+    `*** Update File: ${path.join(f.a, "old.txt")}`,
+    `*** Move to: ${path.join(f.b, "src", "new.txt")}`,
+    "@@",
+    "-old",
+    "+new",
   )
+  const targets = patchTargets(patch)
   expect(targets).toHaveLength(2)
   await expect(delivery.preflight("rename", targets)).rejects.toThrow("INSTRUCTIONS_REQUIRED")
 })
@@ -219,7 +224,7 @@ test("absolute outside paths and linked new-file parents fail closed", async () 
     "UNSUPPORTED_TARGET",
   )
   const linked = path.join(f.a, "linked")
-  await fs.symlink(f.b, linked, process.platform === "win32" ? "junction" : "dir")
+  await linkDirectory(f.b, linked)
   await expect(
     delivery.preflight("linked", [path.join(linked, "new", "file.txt")]),
   ).rejects.toThrow("Linked target")
@@ -229,11 +234,17 @@ test("patch adapter handles add/delete/move and ignores header-looking file cont
   const a = path.resolve("a.txt")
   const b = path.resolve("b.txt")
   const c = path.resolve("c.txt")
-  expect(
-    patchTargets(
-      `*** Begin Patch\n*** Add File: ${a}\n+*** Delete File: not-a-target\n*** Delete File: ${b}\n*** Update File: ${c}\n*** Move to: ${a}\n@@\n-old\n+new\n*** End Patch`,
-    ),
-  ).toEqual([a, b, c, a])
+  const patch = patchText(
+    `*** Add File: ${a}`,
+    "+*** Delete File: not-a-target",
+    `*** Delete File: ${b}`,
+    `*** Update File: ${c}`,
+    `*** Move to: ${a}`,
+    "@@",
+    "-old",
+    "+new",
+  )
+  expect(patchTargets(patch)).toEqual([a, b, c, a])
 })
 
 test("unsupported patch grammar is rejected rather than producing an incomplete target set", () => {

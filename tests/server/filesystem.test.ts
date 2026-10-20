@@ -8,7 +8,7 @@ import {
   checkedTarget,
   overlapsRoots,
 } from "../../src/server/filesystem/policy.ts"
-import { fixture, unix } from "../helpers/filesystem-fixture.ts"
+import { fixture, linkDirectory, unix } from "../helpers/filesystem-fixture.ts"
 
 let h: Awaited<ReturnType<typeof fixture>>
 beforeEach(async () => {
@@ -25,7 +25,7 @@ describe("production native path policy", () => {
     await h.write(h.docs, "visible.txt", "visible")
     await h.write(h.docs, ".env.fixture", "never read")
     const linked = path.join(h.outside, "docs-alias")
-    await fs.symlink(h.docs, linked, process.platform === "win32" ? "junction" : "dir")
+    await linkDirectory(h.docs, linked)
     await expect(checkedTarget(path.join(linked, "visible.txt"), roots())).rejects.toThrow(
       "OUTSIDE_ROOT",
     )
@@ -79,8 +79,8 @@ describe("production native path policy", () => {
     await h.write(h.src, ".env.fixture", "never read")
     const external = path.join(h.docs, "outside")
     const sibling = path.join(h.docs, "sibling")
-    await fs.symlink(h.outside, external, process.platform === "win32" ? "junction" : "dir")
-    await fs.symlink(h.src, sibling, process.platform === "win32" ? "junction" : "dir")
+    await linkDirectory(h.outside, external)
+    await linkDirectory(h.src, sibling)
     await expect(checkedTarget(path.join(external, "new/file.txt"), roots())).rejects.toThrow(
       "OUTSIDE_ROOT",
     )

@@ -3,7 +3,6 @@
 import { Database } from "bun:sqlite"
 import { afterEach, expect, spyOn, test } from "bun:test"
 import type { Plugin } from "@opencode/plugin"
-import type { DialogSelectOptions } from "@opencode/plugin/tui/context"
 import * as fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -14,45 +13,27 @@ import { Catalog } from "../src/server/catalog/catalog.ts"
 import { WorkspaceRPC } from "../src/rpc.ts"
 import Tui from "../src/tui.ts"
 import type { Fake } from "./helpers/fake.ts"
+import { linkDirectory } from "./helpers/filesystem-fixture.ts"
+import {
+  failure,
+  normalizePaths,
+  outcome,
+  pick,
+  plainData,
+  sql,
+  validation,
+} from "./helpers/surface.ts"
 import { tuiHost } from "./helpers/tui-host.ts"
 import { workspaceServer } from "./helpers/workspace-server.ts"
 
 type Host = Awaited<ReturnType<typeof workspaceServer>>
 type TuiHost = Awaited<ReturnType<typeof tuiHost>>
 
-const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 const disposers: (() => Promise<void>)[] = []
 
 afterEach(async () => {
   for (const dispose of disposers.splice(0)) await dispose()
 })
-
-// Temp paths appear raw, slash-normalized and JSON-escaped: once inside the
-// instruction block, and once more when that text is serialized again.
-function normalize(text: string, base: string) {
-  const forms = new Set<string>()
-  for (const form of [base, base.replaceAll("\\", "/")]) {
-    let escaped = form
-    for (let depth = 0; depth < 3; depth++) {
-      forms.add(escaped)
-      escaped = JSON.stringify(escaped).slice(1, -1)
-    }
-  }
-  let result = text
-  for (const form of [...forms].sort((a, b) => b.length - a.length)) {
-    result = result.replaceAll(form, "<base>")
-  }
-  return result.replace(UUID, "<uuid>")
-}
-
-// A JSON round trip drops undefined fields and functions, keeping only data.
-// Multi-line strings become line arrays: Bun would print a nested one after a
-// trailing space, which whitespace tooling could strip and so break the match.
-function normalized(value: unknown, base: string): unknown {
-  return JSON.parse(normalize(JSON.stringify(value), base), (_key, item: unknown) => {
-    return typeof item === "string" && item.includes("\n") ? item.split("\n") : item
-  })
-}
 
 async function server() {
   const host = await workspaceServer()
@@ -84,56 +65,15 @@ async function activeServer() {
   return host
 }
 
-// Writes to a catalog file directly, as a corrupting or bulk-loading peer would.
-function sql(file: string, statement: string, ...params: string[]) {
-  const db = new Database(file)
-  try {
-    db.query(statement).run(...params)
-  } finally {
-    db.close()
-  }
-}
-
-function describeError(error: unknown) {
-  if (!(error instanceof Error)) throw error
-  const code = "code" in error && typeof error.code === "string" ? error.code : null
-  const tag = "_tag" in error && typeof error._tag === "string" ? error._tag : null
-  return { code, tag, message: error.message }
-}
-
-async function failure(attempt: () => Promise<unknown>) {
-  try {
-    await attempt()
-  } catch (error) {
-    return describeError(error)
-  }
-  throw new Error("Expected the operation to fail")
-}
-
-async function outcome(attempt: () => Promise<unknown>) {
-  try {
-    await attempt()
-    return "completed"
-  } catch (error) {
-    return describeError(error)
-  }
-}
-
 // The dialog log as data, after checking the script consumed every queued answer.
 function transcriptOf(h: TuiHost) {
   expect(h.answers).toEqual([])
   expect(h.names).toEqual([])
   expect(h.confirmations).toEqual([])
-  return normalized(
+  return plainData(
     h.transcript.map(({ kind, options }) => ({ kind, ...options })),
     h.server.base,
   )
-}
-
-function pick(title: string) {
-  return (options: DialogSelectOptions<string>) => {
-    return options.options.find((option) => option.title === title)?.value
-  }
 }
 
 test("tool surface", async () => {
@@ -141,7 +81,7 @@ test("tool surface", async () => {
   const tools = [...h.tools.values()].map(({ name, description, input, options }) => {
     return { name, description, input, options }
   })
-  expect(normalized(tools, h.base)).toMatchSnapshot()
+  expect(plainData(tools, h.base)).toMatchSnapshot()
 })
 
 test("system context text", async () => {
@@ -150,7 +90,7 @@ test("system context text", async () => {
   await h.context(event)
   const pushed = event.system.at(-1)
   if (pushed?.type !== "text") throw new Error("The context hook pushed no system text")
-  expect(normalize(pushed.text, h.base)).toMatchSnapshot()
+  expect(normalizePaths(pushed.text, h.base)).toMatchSnapshot()
 })
 
 test("rpc contract", () => {
@@ -200,11 +140,7 @@ test("menu transcript", async () => {
   h.names.push("alpha", h.server.root, (options) => options.value)
   h.confirmations.push(false)
   await h.run()
-  expect(h.answers).toEqual([])
-  expect(h.names).toEqual([])
-  expect(h.confirmations).toEqual([])
-  const transcript = h.transcript.map(({ kind, options }) => ({ kind, ...options }))
-  expect(normalized(transcript, h.server.base)).toMatchSnapshot()
+  expect(transcriptOf(h)).toMatchSnapshot()
 })
 
 test("commands", async () => {
@@ -258,7 +194,7 @@ test("error messages", async () => {
       return h.before("read", { path: "relative.txt" }, "ses_a")
     }),
   }
-  expect(normalized(failures, h.base)).toMatchSnapshot()
+  expect(plainData(failures, h.base)).toMatchSnapshot()
 })
 
 // Tool results: the JSON each helper tool returns to the model.
@@ -280,7 +216,7 @@ test("tool results", async () => {
       include: "many.txt",
     }),
   }
-  expect(normalized({ results, permissions: h.permissions }, h.base)).toMatchSnapshot()
+  expect(plainData({ results, permissions: h.permissions }, h.base)).toMatchSnapshot()
 })
 
 test("tool results: partial search", async () => {
@@ -294,7 +230,7 @@ test("tool results: partial search", async () => {
   await attachAlpha(h, [h.root, ignored, gone])
   await fs.rm(gone, { recursive: true })
   const result = await h.execute("workspace_glob", { pattern: "**/*" })
-  expect(normalized(result, h.base)).toMatchSnapshot()
+  expect(plainData(result, h.base)).toMatchSnapshot()
 })
 
 // Instruction delivery: the blocked and metadata-only variants of the block.
@@ -314,7 +250,7 @@ async function instructionCase(prepare: (host: Host) => Promise<readonly string[
   if (pushed?.type !== "text") throw new Error("The context hook pushed no system text")
   const { instructions } = await h.rpc.selection({ sessionID: "ses_a" })
   const preflight = await outcome(() => h.before("write", { path: `${roots[0]}/new.txt` }))
-  return normalized({ system: pushed.text, instructions, preflight }, h.base)
+  return plainData({ system: pushed.text, instructions, preflight }, h.base)
 }
 
 test("instruction delivery variants", async () => {
@@ -352,13 +288,6 @@ test("instruction delivery variants", async () => {
   }
   expect(variants).toMatchSnapshot()
 })
-
-// Validation rules that JSON Schema cannot express (trim and refine).
-
-function validation(schema: z.ZodType, value: string) {
-  const result = schema.safeParse(value)
-  return result.success ? { data: result.data } : { issues: result.error.issues }
-}
 
 test("name and alias validation", () => {
   // Label/value pairs, not an object: a "__proto__" key would set the prototype.
@@ -445,8 +374,8 @@ test("error messages: administration", async () => {
     "state during unload": unloaded,
   }
   expect({
-    active: normalized(active, h.base),
-    fresh: normalized(freshFailures, fresh.base),
+    active: plainData(active, h.base),
+    fresh: plainData(freshFailures, fresh.base),
   }).toMatchSnapshot()
 })
 
@@ -455,7 +384,7 @@ async function storageFailure(prepare: (host: Host) => Promise<unknown> | void) 
   const h = await server()
   await fs.mkdir(path.dirname(h.catalogPath), { recursive: true })
   await prepare(h)
-  return normalized(await failure(() => h.rpc.state({ sessionID: "ses_a" })), h.base)
+  return plainData(await failure(() => h.rpc.state({ sessionID: "ses_a" })), h.base)
 }
 
 test("error messages: catalog storage", async () => {
@@ -553,9 +482,9 @@ test("error messages: bindings and limits", async () => {
   }
 
   expect({
-    location: normalized(location, moved.base),
-    limits: normalized(limits, crowded.base),
-    lost: normalized(lost, vanished.base),
+    location: plainData(location, moved.base),
+    limits: plainData(limits, crowded.base),
+    lost: plainData(lost, vanished.base),
   }).toMatchSnapshot()
 })
 
@@ -564,8 +493,7 @@ test("error messages: tools and native preflight", async () => {
   const target = `${h.root}/new.txt`
   const outside = path.join(h.base, "outside")
   await fs.mkdir(outside)
-  const link = process.platform === "win32" ? "junction" : "dir"
-  await fs.symlink(outside, path.join(h.root, "linked"), link)
+  await linkDirectory(outside, path.join(h.root, "linked"))
   const failures: Record<string, unknown> = {}
   const write = () => h.before("write", { path: target })
 
@@ -611,11 +539,11 @@ test("error messages: tools and native preflight", async () => {
 
   // Last, because it retargets the root itself: the root path now links elsewhere.
   await fs.rename(h.root, `${h.root} moved`)
-  await fs.symlink(`${h.root} moved`, h.root, link)
+  await linkDirectory(`${h.root} moved`, h.root)
   failures["native read after the root became a link"] = await failure(() => {
     return h.before("read", { path: agents(h.root) })
   })
-  expect(normalized(failures, h.base)).toMatchSnapshot()
+  expect(plainData(failures, h.base)).toMatchSnapshot()
 })
 
 test("error messages: instruction scope limit", async () => {
@@ -628,7 +556,7 @@ test("error messages: instruction scope limit", async () => {
   }
   const request = await failure(() => h.context(h.request("ses_a")))
   const { instructions } = await h.rpc.selection({ sessionID: "ses_a" })
-  expect(normalized({ request, instructions }, h.base)).toMatchSnapshot()
+  expect(plainData({ request, instructions }, h.base)).toMatchSnapshot()
 })
 
 test("console warnings", async () => {
@@ -639,7 +567,7 @@ test("console warnings", async () => {
     await fs.mkdir(h.catalogPath, { recursive: true })
     await h.context(h.request("ses_a"))
     for (let index = 0; index < 10_000; index++) await h.compact(h.request(`ses_started_${index}`))
-    expect(normalized(warning.mock.calls, h.base)).toMatchSnapshot()
+    expect(plainData(warning.mock.calls, h.base)).toMatchSnapshot()
   } finally {
     warning.mockRestore()
   }
@@ -732,7 +660,7 @@ test("menu: started session", async () => {
   await h.server.context(h.server.request("ses_a"))
   h.answers.push("status", undefined)
   await h.run()
-  const sessions = normalized({ created: h.created, navigations: h.navigations }, h.server.base)
+  const sessions = plainData({ created: h.created, navigations: h.navigations }, h.server.base)
   expect({ transcript: transcriptOf(h), sessions }).toMatchSnapshot()
 })
 

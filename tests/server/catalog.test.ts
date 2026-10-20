@@ -1,19 +1,18 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test"
 import { Database } from "bun:sqlite"
 import * as fs from "node:fs/promises"
-import { homedir, tmpdir } from "node:os"
+import { homedir } from "node:os"
 import path from "node:path"
 import { type Action, type Change } from "../../src/shared/schemas.ts"
 import { Catalog } from "../../src/server/catalog/catalog.ts"
 import { slash } from "../../src/server/filesystem/paths.ts"
+import { createTempBase } from "../helpers/filesystem-fixture.ts"
 
 let base: string
 const connections: Catalog[] = []
 const localAppData = process.env.LOCALAPPDATA
 beforeEach(async () => {
-  const parent = path.join(tmpdir(), "opencode")
-  await fs.mkdir(parent, { recursive: true })
-  base = await fs.realpath(await fs.mkdtemp(path.join(parent, "workspace-catalog-test-")))
+  base = await createTempBase("workspace-catalog-test-")
 })
 afterEach(async () => {
   for (const catalog of connections.splice(0)) catalog.close()
