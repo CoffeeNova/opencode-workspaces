@@ -10,7 +10,7 @@ dialogs; it never opens the catalog or asks a model to manage workspaces.
 OpenCode server
   src/index.ts
     domain.ts + rpc.ts
-    infrastructure/catalog.ts -> SQLite
+    server/catalog/{catalog,storage,codec,actions}.ts -> SQLite
     server/filesystem/{paths,policy,safe-read,browse}.ts
     server/search/ -> server/filesystem + isolated regex worker
     server/instructions/ -> scoped AGENTS.md snapshots
@@ -27,7 +27,7 @@ OpenCode TUI
 | [domain.ts](../src/domain.ts) | Zod schemas and inferred types for definitions, bindings, actions, changes, and selection metadata. |
 | [index.ts](../src/index.ts) | Server composition, catalog lifecycle, session admission, RPC handlers, context hooks, native-tool preflight, and helper tools. |
 | [rpc.ts](../src/rpc.ts) | Shared `WorkspaceRPC` contract: `state`, `selection`, `change`, `browse`, and the `changed` event. |
-| [catalog.ts](../src/infrastructure/catalog.ts) | SQLite format validation, transactions, revisions, request receipts, and pinned session bindings. |
+| [catalog/](../src/server/catalog) | Transactions, revisions, request receipts, and pinned session bindings (`catalog.ts`); SQLite format validation, schema, and pragmas (`storage.ts`); row decoding and metadata checks (`codec.ts`); per-action handlers (`actions.ts`). |
 | [paths.ts](../src/server/filesystem/paths.ts) | Path keys, containment checks, and path expansion/resolution. |
 | [policy.ts](../src/server/filesystem/policy.ts) | Sensitive-path denial, canonicalization, root overlap, and native target checks. |
 | [safe-read.ts](../src/server/filesystem/safe-read.ts) | No-follow open flags, the cancellable fill-buffer loop, bounded reads, and UTF-8 decoding. |

@@ -3,9 +3,9 @@ import { Database } from "bun:sqlite"
 import * as fs from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
-import { type Action, type Change } from "../src/shared/schemas.ts"
-import { Catalog } from "../src/infrastructure/catalog.ts"
-import { slash } from "../src/server/filesystem/paths.ts"
+import { type Action, type Change } from "../../src/shared/schemas.ts"
+import { Catalog } from "../../src/server/catalog/catalog.ts"
+import { slash } from "../../src/server/filesystem/paths.ts"
 
 let base: string
 const connections: Catalog[] = []
