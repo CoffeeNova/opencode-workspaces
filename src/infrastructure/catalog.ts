@@ -3,15 +3,9 @@ import { createHash, randomUUID } from "node:crypto"
 import * as fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
-import {
-  Binding,
-  errorCode,
-  unreachable,
-  Workspace,
-  WorkspaceError,
-  WorkspaceID,
-  type Change,
-} from "../domain.ts"
+import { errorCode, unreachable, WorkspaceError } from "../shared/errors.ts"
+import { CATALOG_LIMITS } from "../shared/limits.ts"
+import { Binding, Workspace, WorkspaceID, type Change } from "../shared/schemas.ts"
 import { absolute, assertNotDenied, expanded, pathKey, suggestedAlias } from "./paths.ts"
 
 const APPLICATION_ID = 0x57534d32
@@ -46,7 +40,7 @@ export class Catalog {
     if (!target) return
     const db = new Database(target.file, { readonly: true, strict: true })
     try {
-      db.exec("PRAGMA busy_timeout=5000")
+      db.exec(`PRAGMA busy_timeout=${CATALOG_LIMITS.busyTimeoutMs}`)
       const app = db.query<{ application_id: number }, []>("PRAGMA application_id").get()!
         .application_id
       if (app !== APPLICATION_ID)
@@ -78,7 +72,7 @@ export class Catalog {
       )
     const db = new Database(target.file, { create, strict: true })
     try {
-      db.exec("PRAGMA busy_timeout=5000")
+      db.exec(`PRAGMA busy_timeout=${CATALOG_LIMITS.busyTimeoutMs}`)
       db.transaction(() => {
         const app = db.query<{ application_id: number }, []>("PRAGMA application_id").get()!
           .application_id
@@ -260,7 +254,7 @@ export class Catalog {
             if (
               !old &&
               this.db.query<{ count: number }, []>("SELECT count(*) AS count FROM bindings").get()!
-                .count >= 10_000
+                .count >= CATALOG_LIMITS.bindings
             )
               throw new WorkspaceError("REGISTRY_FULL", "Session catalog maintenance is required")
             this.db
@@ -274,7 +268,7 @@ export class Catalog {
             const definitions = this.state().workspaces
             if (definitions.some((item) => item.name === action.name))
               throw new WorkspaceError("WORKSPACE_EXISTS", "That workspace name already exists")
-            if (definitions.length >= 1000)
+            if (definitions.length >= CATALOG_LIMITS.workspaces)
               throw new WorkspaceError("REGISTRY_FULL", "Workspace limit reached")
             const created: Workspace = {
               id: WorkspaceID.parse(randomUUID()),
@@ -296,7 +290,7 @@ export class Catalog {
             const updated = this.savedWorkspace(action.workspaceID)
             if (!canonicalRoot) throw new WorkspaceError("INVALID_PATH", "Missing validated root")
             if (updated.roots.some((root) => pathKey(root.path) === pathKey(canonicalRoot))) break
-            if (updated.roots.length >= 20)
+            if (updated.roots.length >= CATALOG_LIMITS.roots)
               throw new WorkspaceError("ROOT_LIMIT", "A workspace supports at most 20 folders")
             let alias = action.alias ?? suggestedAlias(canonicalRoot)
             if (action.alias && updated.roots.some((root) => root.alias === alias))
@@ -324,7 +318,7 @@ export class Catalog {
         this.db.query("UPDATE catalog SET revision=revision+1").run()
         this.db.query("INSERT INTO receipts VALUES (?,?)").run(input.requestID, fingerprint)
         this.db.exec(
-          "DELETE FROM receipts WHERE rowid NOT IN (SELECT rowid FROM receipts ORDER BY rowid DESC LIMIT 256)",
+          `DELETE FROM receipts WHERE rowid NOT IN (SELECT rowid FROM receipts ORDER BY rowid DESC LIMIT ${CATALOG_LIMITS.receipts})`,
         )
       })
       .immediate()

@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto"
 import { constants } from "node:fs"
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { errorCode } from "../domain.ts"
+import { errorCode } from "../shared/errors.ts"
+import { INSTRUCTION_LIMITS } from "../shared/limits.ts"
 
 // Scoped source delivery; storage and native permission adapters are separate.
 // Root mappings are immutable for a session once its first request is captured.
@@ -43,7 +44,10 @@ const missing = (error: unknown) => errorCode(error) === "ENOENT"
 export function instructionDelivery(
   roots: readonly InstructionRoot[],
   authorize: (source: string) => Promise<void>,
-  limits = { file: 32 * 1024, aggregate: 64 * 1024 },
+  limits: { file: number; aggregate: number } = {
+    file: INSTRUCTION_LIMITS.fileBytes,
+    aggregate: INSTRUCTION_LIMITS.aggregateBytes,
+  },
 ) {
   const prepared = new Set(roots.map((root) => root.path))
   let snapshot: InstructionSnapshot | undefined
@@ -185,7 +189,7 @@ export function instructionDelivery(
     const unique = [
       ...new Map([...directories].map((directory) => [key(directory), directory])).values(),
     ].sort()
-    if (unique.length > 128)
+    if (unique.length > INSTRUCTION_LIMITS.scopes)
       throw new InstructionError("INSTRUCTIONS_UNAVAILABLE", "Instruction scope limit exceeded")
     const sources: InstructionSource[] = []
     for (const directory of unique) sources.push(await source(directory))
@@ -204,14 +208,16 @@ export function instructionDelivery(
   }
 
   return {
-    async capture(contextLimit = 128_000): Promise<InstructionSnapshot> {
+    async capture(
+      contextLimit: number = INSTRUCTION_LIMITS.minContextTokens,
+    ): Promise<InstructionSnapshot> {
       snapshot = undefined // Never keep an older delivered snapshot if refresh fails.
       messages.clear()
       const sources = await collect(prepared)
       const errors = errorsFor(sources)
       // No tokenizer/model-budget policy is being invented here. The byte caps
       // are experimental at the declared baseline; smaller contexts fail closed.
-      if (contextLimit < 128_000)
+      if (contextLimit < INSTRUCTION_LIMITS.minContextTokens)
         errors.push(`Model context ${contextLimit}: instruction budget policy is unverified`)
       snapshot = { requestID: randomUUID(), roots, sources, errors }
       return snapshot

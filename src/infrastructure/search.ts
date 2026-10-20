@@ -4,7 +4,8 @@ import path from "node:path"
 import { Worker } from "node:worker_threads"
 import ignore, { type Ignore } from "ignore"
 import { z } from "zod"
-import { errorCode, WorkspaceError } from "../domain.ts"
+import { errorCode, WorkspaceError } from "../shared/errors.ts"
+import { SEARCH_LIMITS } from "../shared/limits.ts"
 import {
   absolute,
   assertNotDenied,
@@ -15,7 +16,6 @@ import {
   slash,
 } from "./paths.ts"
 
-export const READ_LIMIT = 200 * 1024
 export type SearchRoot = { alias: string; path: string }
 export type FileEntry = {
   root: SearchRoot
@@ -80,7 +80,7 @@ export function searchPattern(raw: string): Bun.Glob {
   const value = slash(raw.trim())
   if (
     !value ||
-    value.length > 4096 ||
+    value.length > SEARCH_LIMITS.patternLength ||
     /[\x00-\x1f\x7f]/.test(value) ||
     path.isAbsolute(value) ||
     /^[a-z]:/i.test(value) ||
@@ -150,7 +150,7 @@ export async function* walk(
       })
       if (info?.isFile()) {
         await options.beforeRead?.(slash(ignoreFile))
-        const result = await boundedRead(ignoreFile, READ_LIMIT, signal)
+        const result = await boundedRead(ignoreFile, SEARCH_LIMITS.readBytes, signal)
         if (result.truncated)
           throw new WorkspaceError(
             "IGNORE_TOO_LARGE",
@@ -233,7 +233,7 @@ const REGEX_WORKER = String.raw`
     const hits = []
     for (let index = 0; index < lines.length; index++) {
       if (!regex.test(lines[index])) continue
-      hits.push({ line: index + 1, text: lines[index].slice(0, 2000), clipped: lines[index].length > 2000 })
+      hits.push({ line: index + 1, text: lines[index].slice(0, ${SEARCH_LIMITS.lineClip}), clipped: lines[index].length > ${SEARCH_LIMITS.lineClip} })
       if (hits.length === limit) break
     }
     parentPort.postMessage(hits)
@@ -268,7 +268,7 @@ export class RegexMatcher {
               "Fallback regex exceeded its one-second timeout; simplify the pattern or install ripgrep",
             ),
           ),
-        1000,
+        SEARCH_LIMITS.regexTimeoutMs,
       )
       const cleanup = () => {
         clearTimeout(timer)
@@ -322,8 +322,6 @@ type SearchSummary = {
 export type GlobSearchResult = { files: string[] } & SearchSummary
 export type GrepSearchResult = { matches: Match[]; engine: "fs+regex" } & SearchSummary
 export type SearchResult = GlobSearchResult | GrepSearchResult
-const SCAN_LIMIT = 10_000
-const GREP_BYTES = 8 * 1024 * 1024
 
 export function searchWorkspace(
   roots: readonly SearchRoot[],
@@ -364,7 +362,11 @@ export async function searchWorkspace(
         : searchPattern(input.include)
   const excludes = input.exclude?.map(searchPattern)
   if (input.kind === "grep") {
-    if (!input.pattern || input.pattern.length > 4096 || input.pattern.includes("\0"))
+    if (
+      !input.pattern ||
+      input.pattern.length > SEARCH_LIMITS.patternLength ||
+      input.pattern.includes("\0")
+    )
       throw new WorkspaceError("INVALID_PATTERN", "Regex must be 1-4096 characters, without NUL")
     try {
       new RegExp(input.pattern, "u")
@@ -372,7 +374,7 @@ export async function searchWorkspace(
       throw new WorkspaceError("INVALID_PATTERN", "Invalid JavaScript regular expression")
     }
   }
-  const limit = input.kind === "glob" ? 200 : 100
+  const limit = input.kind === "glob" ? SEARCH_LIMITS.globResults : SEARCH_LIMITS.grepResults
   const files: string[] = []
   const matches: Match[] = []
   const statuses: RootResult[] = []
@@ -407,7 +409,7 @@ export async function searchWorkspace(
           )
         for await (const file of walk([root], access.signal, {
           beforeRead,
-          maxEntries: SCAN_LIMIT,
+          maxEntries: SEARCH_LIMITS.entriesPerRoot,
           ...(excludes ? { excludes } : {}),
           skipRoots: selected.filter(
             (other) => pathKey(other.path) !== pathKey(root.path) && inside(root.path, other.path),
@@ -423,8 +425,8 @@ export async function searchWorkspace(
             count++
             continue
           }
-          if (file.size > READ_LIMIT) continue
-          if (bytes + file.size > GREP_BYTES)
+          if (file.size > SEARCH_LIMITS.readBytes) continue
+          if (bytes + file.size > SEARCH_LIMITS.grepBytesPerRoot)
             throw new WorkspaceError(
               "SEARCH_LIMIT",
               "Per-root content byte limit reached; narrow the pattern or alias",
@@ -432,7 +434,7 @@ export async function searchWorkspace(
           let content: string
           try {
             await beforeRead(file.absolute)
-            const read = await boundedRead(file.absolute, READ_LIMIT, access.signal)
+            const read = await boundedRead(file.absolute, SEARCH_LIMITS.readBytes, access.signal)
             bytes += read.bytes.length
             if (read.truncated) continue
             content = decode(read.bytes)
@@ -499,7 +501,11 @@ export async function searchWorkspace(
     roots: statuses,
     truncated: statuses.some((root) => root.status === "truncated"),
     partial: statuses.some((root) => root.status !== "complete"),
-    limits: { results: limit, entriesPerRoot: SCAN_LIMIT, grepBytesPerRoot: GREP_BYTES },
+    limits: {
+      results: limit,
+      entriesPerRoot: SEARCH_LIMITS.entriesPerRoot,
+      grepBytesPerRoot: SEARCH_LIMITS.grepBytesPerRoot,
+    },
   }
   return input.kind === "glob" ? { files, ...summary } : { matches, engine: "fs+regex", ...summary }
 }

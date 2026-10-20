@@ -4,7 +4,7 @@ import path from "node:path"
 import { OpenCode } from "@opencode/client"
 import { Service } from "@opencode/client/service"
 import { z } from "zod"
-import { errorCode } from "../src/domain.ts"
+import { errorCode } from "../src/shared/errors.ts"
 
 const root = await fs.realpath(path.resolve(import.meta.dir, ".."))
 const registeredPackage = path.join(root, "dist").replaceAll("\\", "/")

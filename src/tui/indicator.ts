@@ -2,8 +2,9 @@ import type { Context, SlotMap } from "@opencode/plugin/tui/context"
 import { CliRenderEvents } from "@opentui/core"
 import { jsx } from "@opentui/solid/jsx-runtime"
 import { createComponent, createEffect, createSignal, onCleanup, Show } from "solid-js"
-import type { Selection } from "../domain.ts"
-import { WorkspaceRPC } from "../rpc.ts"
+import { INDICATOR_TIMING } from "../shared/limits.ts"
+import { WorkspaceRPC } from "../shared/rpc-contract.ts"
+import type { Selection } from "../shared/schemas.ts"
 
 function label(name: string, columns: number, blocked = false) {
   const mark = blocked ? "!" : ""
@@ -28,7 +29,11 @@ export function registerWorkspaceIndicator(context: Context) {
       const [selection, setSelection] = createSignal<Selection>()
       const [unavailable, setUnavailable] = createSignal(false)
       const [columns, setColumns] = createSignal(context.renderer.width)
-      const budget = () => Math.min(28, Math.max(8, Math.floor(columns() / 3)))
+      const budget = () =>
+        Math.min(
+          INDICATOR_TIMING.maxColumns,
+          Math.max(INDICATOR_TIMING.minColumns, Math.floor(columns() / 3)),
+        )
       const resize = () => setColumns(context.renderer.width)
       context.renderer.on(CliRenderEvents.RESIZE, resize)
       onCleanup(() => context.renderer.off(CliRenderEvents.RESIZE, resize))
@@ -49,7 +54,7 @@ export function registerWorkspaceIndicator(context: Context) {
         let busy = false
         let queued = false
         let catalogID: string | undefined
-        let retryMs = 2000
+        let retryMs: number = INDICATOR_TIMING.retryMs
         const refresh = async () => {
           if (lifetime.signal.aborted) return
           if (busy) {
@@ -61,7 +66,13 @@ export function registerWorkspaceIndicator(context: Context) {
           try {
             const result = await rpc.selection(
               { sessionID },
-              { location, signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(5000)]) },
+              {
+                location,
+                signal: AbortSignal.any([
+                  lifetime.signal,
+                  AbortSignal.timeout(INDICATOR_TIMING.requestTimeoutMs),
+                ]),
+              },
             )
             if (lifetime.signal.aborted) return
             catalogID = result.catalogID ?? undefined
@@ -70,13 +81,13 @@ export function registerWorkspaceIndicator(context: Context) {
             else knownActive.delete(key)
             setSelection(result)
             setUnavailable(false)
-            retryMs = 2000
+            retryMs = INDICATOR_TIMING.retryMs
           } catch {
             if (lifetime.signal.aborted) return
             setSelection(undefined) // Never present an old selection as current.
             active = knownActive.has(key)
             setUnavailable(active)
-            retryMs = Math.min(retryMs * 2, 10_000)
+            retryMs = Math.min(retryMs * 2, INDICATOR_TIMING.maxRetryMs)
           } finally {
             busy = false
             if (!lifetime.signal.aborted && (active || queued)) {

@@ -1,15 +1,10 @@
 import { Plugin } from "@opencode/plugin/tui"
-import { Alias, Name, unreachable, type Action, type State, type Workspace } from "./domain.ts"
-import { WorkspaceRPC } from "./rpc.ts"
+import { errorText, unreachable } from "./shared/errors.ts"
+import { WorkspaceRPC } from "./shared/rpc-contract.ts"
+import { Alias, Name, type Action, type State, type Workspace } from "./shared/schemas.ts"
 import { registerWorkspaceIndicator } from "./tui/indicator.ts"
 
 type MenuAction = "switch" | "create" | "add" | "root" | "status" | "detach" | "delete"
-
-function errorText(error: unknown) {
-  return error && typeof error === "object" && "message" in error
-    ? String(error.message)
-    : String(error)
-}
 
 export default Plugin.define({
   id: "workspace-manager.v2.tui",

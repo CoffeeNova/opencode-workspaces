@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite"
 import * as fs from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
-import { type Action, type Change } from "../src/domain.ts"
+import { type Action, type Change } from "../src/shared/schemas.ts"
 import { Catalog } from "../src/infrastructure/catalog.ts"
 import { slash } from "../src/infrastructure/paths.ts"
 

@@ -1,7 +1,8 @@
 import * as fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
-import { errorCode, WorkspaceError } from "../domain.ts"
+import { errorCode, WorkspaceError } from "../shared/errors.ts"
+import { BROWSE_LIMITS, CATALOG_LIMITS } from "../shared/limits.ts"
 
 export const slash = (value: string) => value.replaceAll("\\", "/")
 export const pathKey = (value: string) =>
@@ -148,7 +149,7 @@ export function suggestedAlias(directory: string) {
       .toLowerCase()
       .replace(/[^a-z0-9_-]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 90) || "root"
+      .slice(0, CATALOG_LIMITS.suggestedAliasLength) || "root"
   )
 }
 export async function browse(raw: string, base: string) {
@@ -176,8 +177,8 @@ export async function browse(raw: string, base: string) {
     parent,
     suggestedAlias: suggestedAlias(current),
     directories: entries
-      .slice(0, 100)
+      .slice(0, BROWSE_LIMITS.directories)
       .map((entry) => ({ name: entry.name, path: slash(path.join(current, entry.name)) })),
-    truncated: entries.length > 100,
+    truncated: entries.length > BROWSE_LIMITS.directories,
   }
 }

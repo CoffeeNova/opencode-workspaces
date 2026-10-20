@@ -8,7 +8,7 @@ import type {
   Route,
   ToastOptions,
 } from "@opencode/plugin/tui/context"
-import { type Change } from "../../src/domain.ts"
+import { type Change } from "../../src/shared/schemas.ts"
 import { WorkspaceRPC } from "../../src/rpc.ts"
 import Tui from "../../src/tui.ts"
 import { workspaceServer } from "./workspace-server.ts"

@@ -3,15 +3,9 @@ import { Error as ToolError } from "@opencode/plugin/promise/tool"
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
-import {
-  Alias,
-  errorCode,
-  isUnavailableCode,
-  WorkspaceError,
-  type Binding,
-  type Selection,
-  type Workspace,
-} from "./domain.ts"
+import { errorCode, isUnavailableCode, WorkspaceError } from "./shared/errors.ts"
+import { SEARCH_LIMITS, SESSION_LIMITS } from "./shared/limits.ts"
+import { Alias, type Binding, type Selection, type Workspace } from "./shared/schemas.ts"
 import { Catalog } from "./infrastructure/catalog.ts"
 import {
   absolute,
@@ -56,13 +50,19 @@ const NativeTarget = z.object({
   patchText: z.string().optional().catch(undefined),
   workdir: z.string().optional().catch(undefined),
 })
-const SearchFields = { pattern: z.string().min(1).max(4096), alias: Alias.optional() }
-const SearchExclude = z.array(z.string().min(1).max(4096)).max(32).optional()
+const SearchFields = {
+  pattern: z.string().min(1).max(SEARCH_LIMITS.patternLength),
+  alias: Alias.optional(),
+}
+const SearchExclude = z
+  .array(z.string().min(1).max(SEARCH_LIMITS.patternLength))
+  .max(SEARCH_LIMITS.excludes)
+  .optional()
 const GlobSearch = z.object({ ...SearchFields, exclude: SearchExclude }).strict()
 const GrepSearch = z
   .object({
     ...SearchFields,
-    include: z.string().min(1).max(4096).optional(),
+    include: z.string().min(1).max(SEARCH_LIMITS.patternLength).optional(),
     exclude: SearchExclude,
   })
   .strict()
@@ -101,7 +101,7 @@ export default Plugin.define({
     const instructionStates = new Map<string, Selection["instructions"]>()
     function requestStarted(sessionID: string) {
       if (started.has(sessionID) || admissionFull) return
-      if (started.size < 10_000) started.add(sessionID)
+      if (started.size < SESSION_LIMITS.admissionMarkers) started.add(sessionID)
       else {
         admissionFull = true
         console.warn(
@@ -112,7 +112,8 @@ export default Plugin.define({
     function cacheInactive(sessionID: string, value: Inactive) {
       inactive.delete(sessionID)
       inactive.set(sessionID, value)
-      if (inactive.size > 2048) inactive.delete(inactive.keys().next().value!)
+      if (inactive.size > SESSION_LIMITS.inactiveCache)
+        inactive.delete(inactive.keys().next().value!)
     }
     function catalogLocation() {
       catalogPath ??= (
@@ -495,7 +496,7 @@ export default Plugin.define({
         for (const kind of ["glob", "grep"] as const) {
           editor.add({
             name: `workspace_${kind}`,
-            description: `Search this session's pinned workspace ${kind === "glob" ? "file paths by relative glob (also alias:/glob)" : "UTF-8 content by JavaScript regex, optionally filtered by include glob"}. Defaults to all roots; optional alias narrows to one. Honors nested .gitignore and exclude globs; skips sensitive paths and links. Deterministic per-root quotas share ${kind === "glob" ? 200 : 100} results. Reports partial/truncated/unavailable roots. Grep skips binary and >200 KiB files; scan/byte budgets and cancellation apply.`,
+            description: `Search this session's pinned workspace ${kind === "glob" ? "file paths by relative glob (also alias:/glob)" : "UTF-8 content by JavaScript regex, optionally filtered by include glob"}. Defaults to all roots; optional alias narrows to one. Honors nested .gitignore and exclude globs; skips sensitive paths and links. Deterministic per-root quotas share ${kind === "glob" ? SEARCH_LIMITS.globResults : SEARCH_LIMITS.grepResults} results. Reports partial/truncated/unavailable roots. Grep skips binary and >200 KiB files; scan/byte budgets and cancellation apply.`,
             input: z.toJSONSchema(kind === "glob" ? GlobSearch : GrepSearch),
             options: { codemode: false },
             execute: async (raw, context) => {

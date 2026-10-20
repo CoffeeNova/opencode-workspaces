@@ -1,7 +1,7 @@
 import { afterEach, expect, spyOn, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { WorkspaceError } from "../src/domain.ts"
+import { WorkspaceError } from "../src/shared/errors.ts"
 import { Catalog } from "../src/infrastructure/catalog.ts"
 import { workspaceServer } from "./helpers/workspace-server.ts"
 
