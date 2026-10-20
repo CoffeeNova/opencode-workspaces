@@ -46,7 +46,15 @@ do not invent a host capability or silently change the product contract.
 
 Skills use the standard `.agents/skills/<name>/SKILL.md` layout. Commands and rules
 are linked development resources; their folders do not register OpenCode runtime
-slash commands or configure editor-specific discovery.
+slash commands.
+
+Claude Code discovers only `.claude/`, so thin adapters there register the same
+resources: [`/audit`](.claude/commands/audit.md), the
+[skill](.claude/skills/typescript-best-practices/SKILL.md), and a
+[rule](.claude/rules/typescript-best-practices.md) scoped to `**/*.ts`. Adapters
+only point at `.agents`; keep content there and update an adapter's name,
+description, or scope when the source changes. [CLAUDE.md](CLAUDE.md) imports
+this guide.
 
 Imported examples are guidance, not authorization to change unrelated compiler
 options, replace existing domain schemas, or refactor working code. Prefer this
