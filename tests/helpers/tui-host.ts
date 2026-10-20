@@ -10,7 +10,7 @@ import type {
 } from "@opencode/plugin/tui/context"
 import { type Change } from "../../src/shared/schemas.ts"
 import { WorkspaceRPC } from "../../src/rpc.ts"
-import Tui from "../../src/tui.ts"
+import Tui from "../../src/tui/plugin.ts"
 import { workspaceServer } from "./workspace-server.ts"
 import type { Fake } from "./fake.ts"
 

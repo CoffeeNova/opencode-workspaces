@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test"
 import type { Route } from "@opencode/plugin/tui/context"
 import * as fs from "node:fs/promises"
-import { tuiHost } from "./helpers/tui-host.ts"
+import { tuiHost } from "../helpers/tui-host.ts"
 
 const fixtures: Awaited<ReturnType<typeof tuiHost>>[] = []
 afterEach(async () => {
