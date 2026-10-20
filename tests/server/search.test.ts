@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
-import { tmpdir } from "node:os"
 import path from "node:path"
-import { canonicalTarget, checkedTarget, overlapsRoots } from "../src/infrastructure/paths.ts"
 import {
   searchWorkspace,
   walk,
@@ -12,36 +10,8 @@ import {
   type GrepSearchResult,
   type SearchInput,
   type SearchResult,
-} from "../src/infrastructure/search.ts"
-
-const unix = (value: string) =>
-  value.replaceAll("\\", "/").replace(/^[a-z]:/, (drive) => drive.toUpperCase())
-
-async function fixture() {
-  const temporary = path.join(tmpdir(), "opencode")
-  await fs.mkdir(temporary, { recursive: true })
-  const base = await fs.realpath(await fs.mkdtemp(path.join(temporary, "workspace-filesystem-")))
-  const docs = path.join(base, "external docs")
-  const src = path.join(base, "external-src")
-  const outside = path.join(base, "outside")
-  await Promise.all([docs, src, outside].map((dir) => fs.mkdir(dir)))
-  return {
-    base,
-    docs,
-    src,
-    outside,
-    controller: new AbortController(),
-    async write(root: string, file: string, content: string | Buffer) {
-      const absolute = path.join(root, file)
-      await fs.mkdir(path.dirname(absolute), { recursive: true })
-      await fs.writeFile(absolute, content)
-      return absolute
-    },
-    async dispose() {
-      await fs.rm(base, { recursive: true, force: true })
-    },
-  }
-}
+} from "../../src/infrastructure/search.ts"
+import { fixture, unix } from "../helpers/filesystem-fixture.ts"
 
 let h: Awaited<ReturnType<typeof fixture>>
 beforeEach(async () => {
@@ -49,78 +19,6 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await h.dispose()
-})
-
-describe("production native path policy", () => {
-  const roots = () => [{ path: unix(h.docs) }, { path: unix(h.src) }]
-
-  test("rejects outside directory aliases into selected roots for existing and new targets", async () => {
-    await h.write(h.docs, "visible.txt", "visible")
-    await h.write(h.docs, ".env.fixture", "never read")
-    const linked = path.join(h.outside, "docs-alias")
-    await fs.symlink(h.docs, linked, process.platform === "win32" ? "junction" : "dir")
-    await expect(checkedTarget(path.join(linked, "visible.txt"), roots())).rejects.toThrow(
-      "OUTSIDE_ROOT",
-    )
-    await expect(checkedTarget(path.join(linked, "new/nested.txt"), roots())).rejects.toThrow(
-      "OUTSIDE_ROOT",
-    )
-    await expect(checkedTarget(path.join(linked, ".env.fixture"), roots())).rejects.toThrow(
-      "DENIED_PATH",
-    )
-    expect(await canonicalTarget(path.join(linked, "new/nested.txt"))).toBe(
-      unix(path.join(h.docs, "new/nested.txt")),
-    )
-    expect(await overlapsRoots(linked, roots())).toBe(true)
-    expect(await overlapsRoots(h.docs, roots())).toBe(true)
-    expect(await overlapsRoots(h.base, roots())).toBe(true)
-  })
-
-  test("preserves unrelated explicit paths and canonical workspace creation paths", async () => {
-    await h.write(h.outside, "visible.txt", "outside")
-    expect(await checkedTarget(path.join(h.outside, "visible.txt"), roots())).toBeUndefined()
-    expect(await checkedTarget(path.join(h.outside, ".env.fixture"), roots())).toBeUndefined()
-    expect(await checkedTarget(path.join(h.docs, "new/nested.txt"), roots())).toBe(
-      unix(path.join(h.docs, "new/nested.txt")),
-    )
-    expect(await overlapsRoots(h.outside, roots())).toBe(false)
-    await expect(checkedTarget("docs:/visible.txt", roots())).rejects.toThrow("INVALID_PATH")
-  })
-
-  test("leaves unrelated resolution failures to native tools without hiding covered failures", async () => {
-    const realpath = spyOn(fs, "realpath")
-    try {
-      for (const code of ["EACCES", "EPERM", "ENOTDIR", "ELOOP", "EBUSY", "ENAMETOOLONG"]) {
-        const problem = Object.assign(new Error("Native filesystem error"), { code })
-        realpath.mockRejectedValueOnce(problem)
-        expect(
-          await checkedTarget(path.join(h.outside, "unavailable.txt"), roots()),
-        ).toBeUndefined()
-        realpath.mockRejectedValueOnce(problem)
-        await expect(checkedTarget(path.join(h.docs, "unavailable.txt"), roots())).rejects.toBe(
-          problem,
-        )
-        realpath.mockRejectedValueOnce(problem)
-        expect(await overlapsRoots(h.outside, roots())).toBe(false)
-      }
-    } finally {
-      realpath.mockRestore()
-    }
-  })
-
-  test("rejects outward links and sensitive destinations between registered roots", async () => {
-    await h.write(h.src, ".env.fixture", "never read")
-    const external = path.join(h.docs, "outside")
-    const sibling = path.join(h.docs, "sibling")
-    await fs.symlink(h.outside, external, process.platform === "win32" ? "junction" : "dir")
-    await fs.symlink(h.src, sibling, process.platform === "win32" ? "junction" : "dir")
-    await expect(checkedTarget(path.join(external, "new/file.txt"), roots())).rejects.toThrow(
-      "OUTSIDE_ROOT",
-    )
-    await expect(checkedTarget(path.join(sibling, ".env.fixture"), roots())).rejects.toThrow(
-      "DENIED_PATH",
-    )
-  })
 })
 
 describe("session workspace search service", () => {
@@ -308,37 +206,3 @@ describe("session workspace search service", () => {
     expect(result.partial).toBe(true)
   })
 })
-
-test.skipIf(process.platform !== "win32")(
-  "README commands parse with the real Windows PowerShell 5.1 parser",
-  async () => {
-    const readme = await fs.readFile(new URL("../README.md", import.meta.url), "utf8")
-    const scripts = [...readme.matchAll(/```powershell\r?\n([\s\S]*?)```/g)].map(
-      (match) => match[1]!,
-    )
-    expect(scripts.length).toBeGreaterThan(0)
-    const parser = `
-    $tokens = $null
-    $errors = $null
-    [System.Management.Automation.Language.Parser]::ParseInput([Console]::In.ReadToEnd(), [ref]$tokens, [ref]$errors) | Out-Null
-    if ($errors.Count -gt 0) { $errors | ForEach-Object { [Console]::Error.WriteLine($_.Message) }; exit 1 }
-    [Console]::Out.Write($PSVersionTable.PSVersion.Major)
-  `
-    const process = Bun.spawn(
-      ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", parser],
-      {
-        stdin: new Blob([scripts.join("\n\n")]),
-        stdout: "pipe",
-        stderr: "pipe",
-      },
-    )
-    const [code, stdout, stderr] = await Promise.all([
-      process.exited,
-      new Response(process.stdout).text(),
-      new Response(process.stderr).text(),
-    ])
-    expect({ code, stderr }).toEqual({ code: 0, stderr: "" })
-    expect(stdout).toBe("5")
-  },
-  10_000,
-)

@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto"
-import { constants } from "node:fs"
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { errorCode } from "../shared/errors.ts"
 import { INSTRUCTION_LIMITS } from "../shared/limits.ts"
+import { isInsideResolved, resolvedKey } from "../server/filesystem/paths.ts"
+import { fillBuffer, NO_FOLLOW_READ } from "../server/filesystem/safe-read.ts"
 
 // Scoped source delivery; storage and native permission adapters are separate.
 // Root mappings are immutable for a session once its first request is captured.
@@ -30,15 +31,6 @@ export class InstructionError extends Error {
     super(`${code}: ${detail}`)
   }
 }
-const key = (value: string) =>
-  process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value)
-const inside = (root: string, target: string) => {
-  const relative = path.relative(key(root), key(target))
-  return (
-    relative === "" ||
-    (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`))
-  )
-}
 const missing = (error: unknown) => errorCode(error) === "ENOENT"
 
 export function instructionDelivery(
@@ -60,12 +52,12 @@ export function instructionDelivery(
       throw new InstructionError("UNSUPPORTED_TARGET", "Use absolute native paths")
     const lexical = path.resolve(target)
     const owners = roots
-      .filter((root) => inside(root.path, lexical))
+      .filter((root) => isInsideResolved(root.path, lexical))
       .sort((a, b) => b.path.length - a.path.length)
     if (!owners.length)
       throw new InstructionError("UNSUPPORTED_TARGET", `Outside the selected roots: ${target}`)
     for (const root of owners) {
-      if (key(await fs.realpath(root.path)) !== key(root.path))
+      if (resolvedKey(await fs.realpath(root.path)) !== resolvedKey(root.path))
         throw new InstructionError("UNSUPPORTED_TARGET", `Root retargeted: ${root.path}`)
     }
     // Resolve even a new file through its nearest existing parent. This proof
@@ -76,7 +68,7 @@ export function instructionDelivery(
     while (true) {
       try {
         const real = path.join(await fs.realpath(existing), ...suffix)
-        if (key(path.resolve(real)) !== key(path.resolve(lexical)))
+        if (resolvedKey(path.resolve(real)) !== resolvedKey(path.resolve(lexical)))
           throw new InstructionError("UNSUPPORTED_TARGET", `Linked target: ${target}`)
         break
       } catch (error) {
@@ -95,9 +87,9 @@ export function instructionDelivery(
     // sources. Most-specific root ownership does not erase registered ancestors.
     for (const root of owners) {
       let current = directory
-      while (inside(root.path, current)) {
+      while (isInsideResolved(root.path, current)) {
         directories.add(current)
-        if (key(current) === key(root.path)) break
+        if (resolvedKey(current) === resolvedKey(root.path)) break
         current = path.dirname(current)
       }
     }
@@ -112,7 +104,11 @@ export function instructionDelivery(
     await authorize(file)
     try {
       const stat = await fs.lstat(file)
-      if (!stat.isFile() || stat.isSymbolicLink() || key(await fs.realpath(file)) !== key(file)) {
+      if (
+        !stat.isFile() ||
+        stat.isSymbolicLink() ||
+        resolvedKey(await fs.realpath(file)) !== resolvedKey(file)
+      ) {
         return {
           ...base,
           status: "error",
@@ -126,29 +122,21 @@ export function instructionDelivery(
           bytes: stat.size,
           error: `File exceeds ${limits.file} bytes`,
         }
-      const handle = await fs.open(
-        file,
-        constants.O_RDONLY | (process.platform === "win32" ? 0 : constants.O_NOFOLLOW),
-      )
+      const handle = await fs.open(file, NO_FOLLOW_READ)
       let bytes: Buffer
       try {
         const opened = await handle.stat()
         if (!opened.isFile() || opened.dev !== stat.dev || opened.ino !== stat.ino)
           return { ...base, status: "error", error: "Instruction source changed while opening" }
         const buffer = Buffer.alloc(limits.file + 1)
-        let length = 0
-        while (length < buffer.length) {
-          const result = await handle.read(buffer, length, buffer.length - length, null)
-          if (!result.bytesRead) break
-          length += result.bytesRead
-        }
+        const length = await fillBuffer(handle, buffer)
         bytes = buffer.subarray(0, length)
         const after = await fs.lstat(file)
         if (
           !after.isFile() ||
           after.dev !== opened.dev ||
           after.ino !== opened.ino ||
-          key(await fs.realpath(file)) !== key(file)
+          resolvedKey(await fs.realpath(file)) !== resolvedKey(file)
         )
           return {
             ...base,
@@ -187,7 +175,7 @@ export function instructionDelivery(
 
   async function collect(directories: Iterable<string>) {
     const unique = [
-      ...new Map([...directories].map((directory) => [key(directory), directory])).values(),
+      ...new Map([...directories].map((directory) => [resolvedKey(directory), directory])).values(),
     ].sort()
     if (unique.length > INSTRUCTION_LIMITS.scopes)
       throw new InstructionError("INSTRUCTIONS_UNAVAILABLE", "Instruction scope limit exceeded")
@@ -244,7 +232,9 @@ export function instructionDelivery(
           "No current generating request snapshot; prepare scopes and request again",
         )
       for (const item of current) {
-        const prior = delivered.sources.find((candidate) => key(candidate.path) === key(item.path))
+        const prior = delivered.sources.find(
+          (candidate) => resolvedKey(candidate.path) === resolvedKey(item.path),
+        )
         if (
           (item.status === "loaded" && (prior?.status !== "loaded" || prior.hash !== item.hash)) ||
           (item.status === "missing" && prior?.status === "loaded")

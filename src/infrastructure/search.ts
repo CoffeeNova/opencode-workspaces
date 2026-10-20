@@ -1,4 +1,4 @@
-import { constants, type Dirent } from "node:fs"
+import { type Dirent } from "node:fs"
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { Worker } from "node:worker_threads"
@@ -6,15 +6,9 @@ import ignore, { type Ignore } from "ignore"
 import { z } from "zod"
 import { errorCode, WorkspaceError } from "../shared/errors.ts"
 import { SEARCH_LIMITS } from "../shared/limits.ts"
-import {
-  absolute,
-  assertNotDenied,
-  canonicalDirectory,
-  checkedTarget,
-  inside,
-  pathKey,
-  slash,
-} from "./paths.ts"
+import { isInside, pathKey, resolvePath, slash } from "../server/filesystem/paths.ts"
+import { assertNotDenied, canonicalDirectory, checkedTarget } from "../server/filesystem/policy.ts"
+import { boundedRead, decodeUtf8 } from "../server/filesystem/safe-read.ts"
 
 export type SearchRoot = { alias: string; path: string }
 export type FileEntry = {
@@ -26,55 +20,6 @@ export type FileEntry = {
   size: number
 }
 type IgnoreLayer = { directory: string; rules: Ignore }
-
-export async function boundedRead(
-  file: string,
-  limit: number,
-  signal?: AbortSignal,
-): Promise<{ bytes: Buffer; truncated: boolean }> {
-  signal?.throwIfAborted()
-  const before = await fs.lstat(file)
-  if (!before.isFile()) throw new WorkspaceError("NOT_FILE", `Not a regular file: ${file}`)
-  const handle = await fs.open(
-    file,
-    constants.O_RDONLY | (process.platform === "win32" ? 0 : constants.O_NOFOLLOW),
-  )
-  try {
-    const info = await handle.stat()
-    if (!info.isFile() || info.dev !== before.dev || info.ino !== before.ino)
-      throw new WorkspaceError("PATH_CHANGED", "File changed while opening it; retry the operation")
-    const buffer = Buffer.alloc(Math.min(limit, Math.max(info.size, 1)))
-    let length = 0
-    while (length < buffer.length) {
-      signal?.throwIfAborted()
-      const result = await handle.read(buffer, length, buffer.length - length, null)
-      if (result.bytesRead === 0) break
-      length += result.bytesRead
-    }
-    const after = await handle.stat()
-    if (pathKey(absolute(await fs.realpath(file), path.dirname(file))) !== pathKey(file))
-      throw new WorkspaceError(
-        "PATH_CHANGED",
-        "File path changed during the read; retry the operation",
-      )
-    signal?.throwIfAborted()
-    return {
-      bytes: buffer.subarray(0, length),
-      truncated: info.size > length || after.size > length,
-    }
-  } finally {
-    await handle.close()
-  }
-}
-
-export function decode(bytes: Buffer, truncated = false): string {
-  if (bytes.includes(0)) throw new WorkspaceError("BINARY_FILE", "Binary files are not supported")
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: truncated })
-  } catch {
-    throw new WorkspaceError("BINARY_FILE", "File is not valid UTF-8 text")
-  }
-}
 
 export function searchPattern(raw: string): Bun.Glob {
   const value = slash(raw.trim())
@@ -136,8 +81,8 @@ export async function* walk(
     while (queue.length) {
       signal.throwIfAborted()
       const current = queue.pop()!
-      const real = absolute(await fs.realpath(current.directory), root.path)
-      if (pathKey(real) !== pathKey(current.directory) || !inside(root.path, real))
+      const real = resolvePath(await fs.realpath(current.directory), root.path)
+      if (pathKey(real) !== pathKey(current.directory) || !isInside(root.path, real))
         throw new WorkspaceError(
           "PATH_CHANGED",
           "A directory changed during the scan; retry the operation",
@@ -156,7 +101,7 @@ export async function* walk(
             "IGNORE_TOO_LARGE",
             `.gitignore exceeds 200 KB: ${slash(ignoreFile)}`,
           )
-        layers.push({ directory: current.directory, rules: ignore().add(decode(result.bytes)) })
+        layers.push({ directory: current.directory, rules: ignore().add(decodeUtf8(result.bytes)) })
       }
       const entries: Dirent[] = []
       for await (const entry of await fs.opendir(current.directory)) {
@@ -184,7 +129,7 @@ export async function* walk(
           if (error instanceof WorkspaceError && error.code === "DENIED_PATH") continue
           throw error
         }
-        if (options.skipRoots?.some((other) => inside(other.path, file))) continue
+        if (options.skipRoots?.some((other) => isInside(other.path, file))) continue
         const relative = slash(path.relative(root.path, file))
         if (
           options.excludes?.some(
@@ -198,9 +143,9 @@ export async function* walk(
           directories.push({ directory: file, layers })
         } else if (entry.isFile()) {
           try {
-            const canonical = absolute(await fs.realpath(file), root.path)
+            const canonical = resolvePath(await fs.realpath(file), root.path)
             assertNotDenied(canonical)
-            if (!inside(root.path, canonical) || pathKey(canonical) !== pathKey(file))
+            if (!isInside(root.path, canonical) || pathKey(canonical) !== pathKey(file))
               throw new WorkspaceError("PATH_CHANGED", "A file changed during the scan")
             if (seen.has(pathKey(canonical))) continue
             const info = await fs.stat(canonical)
@@ -412,7 +357,8 @@ export async function searchWorkspace(
           maxEntries: SEARCH_LIMITS.entriesPerRoot,
           ...(excludes ? { excludes } : {}),
           skipRoots: selected.filter(
-            (other) => pathKey(other.path) !== pathKey(root.path) && inside(root.path, other.path),
+            (other) =>
+              pathKey(other.path) !== pathKey(root.path) && isInside(root.path, other.path),
           ),
         })) {
           if (include && !include.match(file.relative)) continue
@@ -437,7 +383,7 @@ export async function searchWorkspace(
             const read = await boundedRead(file.absolute, SEARCH_LIMITS.readBytes, access.signal)
             bytes += read.bytes.length
             if (read.truncated) continue
-            content = decode(read.bytes)
+            content = decodeUtf8(read.bytes)
           } catch (error) {
             access.signal.throwIfAborted()
             if (permissionRejected) throw error

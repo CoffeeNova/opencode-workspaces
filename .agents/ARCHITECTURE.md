@@ -11,8 +11,8 @@ OpenCode server
   src/index.ts
     domain.ts + rpc.ts
     infrastructure/catalog.ts -> SQLite
-    infrastructure/paths.ts
-    infrastructure/search.ts -> paths + isolated regex worker
+    server/filesystem/{paths,policy,safe-read,browse}.ts
+    infrastructure/search.ts -> server/filesystem + isolated regex worker
     instructions/delivery.ts -> scoped AGENTS.md snapshots
 
 OpenCode TUI
@@ -28,7 +28,10 @@ OpenCode TUI
 | [index.ts](../src/index.ts) | Server composition, catalog lifecycle, session admission, RPC handlers, context hooks, native-tool preflight, and helper tools. |
 | [rpc.ts](../src/rpc.ts) | Shared `WorkspaceRPC` contract: `state`, `selection`, `change`, `browse`, and the `changed` event. |
 | [catalog.ts](../src/infrastructure/catalog.ts) | SQLite format validation, transactions, revisions, request receipts, and pinned session bindings. |
-| [paths.ts](../src/infrastructure/paths.ts) | Server-side path expansion, canonicalization, root containment, sensitive-path checks, and folder browsing. |
+| [paths.ts](../src/server/filesystem/paths.ts) | Path keys, containment checks, and path expansion/resolution. |
+| [policy.ts](../src/server/filesystem/policy.ts) | Sensitive-path denial, canonicalization, root overlap, and native target checks. |
+| [safe-read.ts](../src/server/filesystem/safe-read.ts) | No-follow open flags, the cancellable fill-buffer loop, bounded reads, and UTF-8 decoding. |
+| [browse.ts](../src/server/filesystem/browse.ts) | Folder browsing for the RPC `browse` method. |
 | [search.ts](../src/infrastructure/search.ts) | Ignore-aware traversal, bounded UTF-8 reads, regex worker isolation, and multi-root search results. |
 | [delivery.ts](../src/instructions/delivery.ts) | Scoped instruction discovery, request snapshots, content fingerprints, mutation preflight, compaction invalidation, and patch target parsing. |
 | [tui.ts](../src/tui.ts) | Native management menus, folder selection, explicit attachment, new-session navigation, and user-facing errors. |

@@ -10,7 +10,7 @@ import path from "node:path"
 import Server from "../../src/index.ts"
 import { Selection, State, type Action, type Change } from "../../src/shared/schemas.ts"
 import { Catalog } from "../../src/infrastructure/catalog.ts"
-import { slash } from "../../src/infrastructure/paths.ts"
+import { slash } from "../../src/server/filesystem/paths.ts"
 import { WorkspaceRPC } from "../../src/rpc.ts"
 import type { Fake } from "./fake.ts"
 

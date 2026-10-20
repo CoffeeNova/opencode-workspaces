@@ -7,17 +7,9 @@ import { errorCode, isUnavailableCode, WorkspaceError } from "./shared/errors.ts
 import { SEARCH_LIMITS, SESSION_LIMITS } from "./shared/limits.ts"
 import { Alias, type Binding, type Selection, type Workspace } from "./shared/schemas.ts"
 import { Catalog } from "./infrastructure/catalog.ts"
-import {
-  absolute,
-  browse,
-  canonicalDirectory,
-  checkedTarget,
-  expanded,
-  inside,
-  overlapsRoots,
-  pathKey,
-  slash,
-} from "./infrastructure/paths.ts"
+import { browseDirectory } from "./server/filesystem/browse.ts"
+import { expandPath, isInside, pathKey, resolvePath, slash } from "./server/filesystem/paths.ts"
+import { canonicalDirectory, checkedTarget, overlapsRoots } from "./server/filesystem/policy.ts"
 import { searchWorkspace, type SearchInput } from "./infrastructure/search.ts"
 import {
   instructionBlock,
@@ -340,7 +332,7 @@ export default Plugin.define({
             call.signal.throwIfAborted()
             // Authenticated human administration: directory metadata only, even
             // at home. No instruction/content reads or invented tool context.
-            const result = await browse(input.path ?? directory, directory)
+            const result = await browseDirectory(input.path ?? directory, directory)
             call.signal.throwIfAborted()
             return result
           } catch (error) {
@@ -433,7 +425,7 @@ export default Plugin.define({
           const input: z.infer<typeof NativeTarget> = parsed.success ? parsed.data : {}
           if (event.tool === "glob" || event.tool === "grep") {
             const searchDirectory =
-              input.path !== undefined ? absolute(input.path, directory) : directory
+              input.path !== undefined ? resolvePath(input.path, directory) : directory
             if (await overlapsRoots(searchDirectory, bound.roots))
               throw new WorkspaceError(
                 "USE_WORKSPACE_SEARCH",
@@ -456,7 +448,7 @@ export default Plugin.define({
             )
           const covered: string[] = []
           for (const target of targets) {
-            if (expanded(target).split("/").includes(".."))
+            if (expandPath(target).split("/").includes(".."))
               await ctx.permission.assert({
                 sessionID: event.sessionID,
                 agent: event.agent,
@@ -559,8 +551,8 @@ export default Plugin.define({
               throw new ToolError({
                 message: "INVALID_PATH: use a registered alias:/relative/path",
               })
-            const candidate = absolute(prefix[2] || ".", root.path)
-            if (!inside(root.path, candidate))
+            const candidate = resolvePath(prefix[2] || ".", root.path)
+            if (!isInside(root.path, candidate))
               throw new ToolError({ message: "OUTSIDE_ROOT: alias traversal is not allowed" })
             const source = { type: "tool" as const, messageID: context.messageID, id: context.id }
             if (prefix[2]!.replaceAll("\\", "/").split("/").includes(".."))

@@ -5,7 +5,7 @@ import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { type Action, type Change } from "../src/shared/schemas.ts"
 import { Catalog } from "../src/infrastructure/catalog.ts"
-import { slash } from "../src/infrastructure/paths.ts"
+import { slash } from "../src/server/filesystem/paths.ts"
 
 let base: string
 const connections: Catalog[] = []

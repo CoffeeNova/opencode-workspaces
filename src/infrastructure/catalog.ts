@@ -6,7 +6,8 @@ import path from "node:path"
 import { errorCode, unreachable, WorkspaceError } from "../shared/errors.ts"
 import { CATALOG_LIMITS } from "../shared/limits.ts"
 import { Binding, Workspace, WorkspaceID, type Change } from "../shared/schemas.ts"
-import { absolute, assertNotDenied, expanded, pathKey, suggestedAlias } from "./paths.ts"
+import { expandPath, pathKey, resolvePath } from "../server/filesystem/paths.ts"
+import { assertNotDenied, suggestedAlias } from "../server/filesystem/policy.ts"
 
 const APPLICATION_ID = 0x57534d32
 const STORAGE_VERSION = 2
@@ -21,7 +22,7 @@ export class Catalog {
   private static async locate(raw: string, base: string, create: boolean) {
     if (path.extname(raw).toLowerCase() !== ".sqlite")
       throw new WorkspaceError("INVALID_REGISTRY", "Workspace catalogs require a .sqlite path")
-    const file = absolute(raw, base)
+    const file = resolvePath(raw, base)
     if (create) await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
     const info = await fs.lstat(file).catch((error: unknown) => {
       if (errorCode(error) !== "ENOENT") throw error
@@ -132,7 +133,7 @@ export class Catalog {
       const aliases = new Set<string>()
       const paths = new Set<string>()
       for (const root of workspace.roots) {
-        const value = expanded(root.path)
+        const value = expandPath(root.path)
         if (!path.isAbsolute(value) || value.split("/").includes(".."))
           throw new Error("Stored root is not absolute")
         assertNotDenied(value)
