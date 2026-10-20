@@ -2,10 +2,8 @@ import { afterEach, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import {
-  createInstructionDelivery,
-  type DeliveredSource,
-} from "../../src/server/instructions/delivery.ts"
+import { createInstructionDelivery } from "../../src/server/instructions/delivery.ts"
+import type { DeliveredSource } from "../../src/server/instructions/types.ts"
 import { patchTargets } from "../../src/server/instructions/patch-targets.ts"
 import { instructionBlock } from "../../src/server/instructions/render.ts"
 

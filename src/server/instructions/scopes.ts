@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises"
 import path from "node:path"
 import { errorCode } from "../../shared/errors.ts"
 import { isInsideResolved, resolvedKey } from "../filesystem/paths.ts"
-import { InstructionError, type InstructionRoot } from "./delivery.ts"
+import { InstructionError, type InstructionRoot } from "./types.ts"
 
 const isMissing = (error: unknown) => errorCode(error) === "ENOENT"
 

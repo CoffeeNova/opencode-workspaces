@@ -1,5 +1,5 @@
 import path from "node:path"
-import { InstructionError } from "./delivery.ts"
+import { InstructionError } from "./types.ts"
 
 const FILE_HEADER = /^\*\*\* (Add|Delete|Update) File: (\S.*)$/
 const MOVE_PREFIX = "*** Move to: "

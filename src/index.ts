@@ -13,9 +13,9 @@ import { canonicalDirectory, checkedTarget, overlapsRoots } from "./server/files
 import { searchWorkspace, type SearchInput } from "./server/search/search.ts"
 import {
   createInstructionDelivery,
-  InstructionError,
   type InstructionDelivery,
 } from "./server/instructions/delivery.ts"
+import { InstructionError } from "./server/instructions/types.ts"
 import { patchTargets } from "./server/instructions/patch-targets.ts"
 import { instructionBlock } from "./server/instructions/render.ts"
 import { WorkspaceRPC } from "./rpc.ts"

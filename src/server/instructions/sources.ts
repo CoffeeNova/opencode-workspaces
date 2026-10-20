@@ -5,7 +5,7 @@ import path from "node:path"
 import { errorCode } from "../../shared/errors.ts"
 import { resolvedKey } from "../filesystem/paths.ts"
 import { fillBuffer, NO_FOLLOW_READ } from "../filesystem/safe-read.ts"
-import type { InstructionSource } from "./delivery.ts"
+import type { InstructionSource } from "./types.ts"
 
 type SourceBase = { path: string; scope: string }
 type StableRead = { bytes: Buffer } | { error: string }
