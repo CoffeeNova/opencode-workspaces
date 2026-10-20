@@ -111,19 +111,21 @@ lockfile.
 | Markdown or agent customization only | Validate local links/anchors, skill/rule/command metadata, provenance, and `git diff --check`; no build or tests required. |
 | Production source/release scripts | `bun run typecheck`. |
 | All TypeScript, including tests | `bun run bun-typecheck`. |
+| Formatting | `bun run format:check` (Prettier over `src`, `tests`, and `scripts`); `bun run format` rewrites. |
 | Unit/adapter regressions | `bun test`, or a focused existing test file during iteration. |
 | Distribution | `bun run build`; `bun run pack` when packaging changes. Neither runs tests. |
 
 Automated unit/adapter tests and typechecking are permitted. Running OpenCode,
-`bun run start`, `bun run check:workspaces`, or any `test:capabilities*`/live TUI
-script requires separate user approval. Never restart a shared service, modify
-global configuration, make real provider requests, or touch user catalogs as
-part of routine validation.
+`bun run start`, `bun run check:workspaces`, or any live TUI script requires
+separate user approval. Never restart a shared service, modify global
+configuration, make real provider requests, or touch user catalogs as part of
+routine validation.
 
 The actual-package harness still expects pre-opt-in behavior such as
 `[ws:none]`. Reconcile it with the current contract before using it for fresh
-acceptance. Historical probe success and mocked regressions are not proof of the
-current package's live behavior. The real capability fixture is Windows-only.
+acceptance. Mocked regressions and a passing build are not proof of the current
+package's live behavior. The live harness support in `tests/live` has
+Windows-specific executable and shell handling.
 
 For normal installation register the absolute `dist` directory, not the checkout
 root: the pinned host probes local entrypoint files rather than following the

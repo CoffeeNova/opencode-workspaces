@@ -6,51 +6,76 @@ The plugin has separate OpenCode server, TUI, and RPC entrypoints. The server
 owns filesystem access and persistent state. The TUI uses typed RPC and native
 dialogs; it never opens the catalog or asks a model to manage workspaces.
 
-```text
-OpenCode server
-  src/index.ts -> server/plugin.ts
-    server/runtime.ts -> sessions/, catalog-access.ts, session-instructions.ts
-    server/rpc-handlers.ts, server/hooks/, server/tools/
-    shared/{schemas,errors,limits,rpc-contract}.ts + rpc.ts
-    server/catalog/{catalog,storage,codec,actions}.ts -> SQLite
-    server/filesystem/{paths,policy,safe-read,browse}.ts
-    server/search/ -> server/filesystem + isolated regex worker
-    server/instructions/ -> scoped AGENTS.md snapshots
+[index.ts](../src/index.ts), [tui.ts](../src/tui.ts), and [rpc.ts](../src/rpc.ts)
+are one-line entry files that re-export the server plugin, the TUI plugin, and the
+RPC contract. The code lives under `src/shared`, `src/server`, and `src/tui`.
 
-OpenCode TUI
-  src/tui.ts -> rpc.ts -> server
-    tui/indicator/ -> selection RPC + host UI runtime
+```text
+src/shared/   schemas, errors, limits, rpc-contract      (imports no other src folder)
+    ^                                      ^
+    |                                      |
+src/tui/                               src/server/
+  plugin.ts, target.ts, messages.ts      plugin.ts -> runtime.ts (owners below)
+  menu/       MenuSession + one          rpc-handlers.ts, hooks/, tools/
+              module per flow            sessions/, catalog/ -> SQLite
+  indicator/  footer + SelectionPoller   filesystem/, search/ -> isolated regex worker
+                                         instructions/ -> scoped AGENTS.md snapshots
 ```
+
+Module direction is one way: `tui -> shared <- server`. `src/shared` imports
+nothing from `server` or `tui`, and the TUI imports only `src/shared` and host UI
+packages. The TUI reaches the server only through the `WorkspaceRPC` contract.
+Production modules must not import test fixtures.
+
+### Server owners
+
+`createRuntime` in [runtime.ts](../src/server/runtime.ts) builds one
+`ServerRuntime` per plugin instance and passes it to the RPC handlers, hooks, and
+tools. `disposeRuntime` clears every owner on unload.
+
+| Owner | Job |
+| --- | --- |
+| `CatalogAccess` | Resolves the catalog path once and lazily opens a read-only catalog for discovery or a writable one on demand. Concurrent callers share one open; unload closes both. |
+| `SessionAdmission` | Synchronous started-session markers. A session that has started a request can never be attached. |
+| `BindingResolver` | Resolves and caches each session's pinned binding. Sessions once seen active fail closed; inactive results are cached with a bound. |
+| `SessionInstructions` | Per-session instruction delivery and the instruction status reported to the footer. |
+
+### TUI owners
+
+| Owner | Job |
+| --- | --- |
+| `MenuSession` | One open menu: its pinned target, the last loaded state, validity checks against navigation or disposal, and the guarded `change` call. Each menu flow receives it as its context. |
+| `SelectionPoller` | Keeps one displayed session's selection current: one request at a time, queued refreshes, a per-request timeout, and backoff polling only while a workspace is active. |
 
 ## Source map
 
 | Module | Responsibility |
 | --- | --- |
 | [schemas.ts](../src/shared/schemas.ts) | Zod schemas and inferred types for definitions, bindings, actions, changes, and selection metadata. |
+| [errors.ts](../src/shared/errors.ts) | `WorkspaceError`, error codes, and unavailable-storage code classification. |
+| [limits.ts](../src/shared/limits.ts) | Named catalog, session, search, instruction, browse, and indicator-timing limits. |
+| [rpc-contract.ts](../src/shared/rpc-contract.ts) | Shared `WorkspaceRPC` contract (re-exported by [rpc.ts](../src/rpc.ts)): `state`, `selection`, `change`, `browse`, and the `changed` event. |
 | [plugin.ts](../src/server/plugin.ts) | Server composition: option validation, runtime creation, registration order, and disposal ([index.ts](../src/index.ts) re-exports it). |
 | [runtime.ts](../src/server/runtime.ts) | The `ServerRuntime` owners passed to handlers, hooks, and tools. |
-| [sessions/](../src/server/sessions) | Request admission markers (`admission.ts`), binding resolution and caching (`bindings.ts`), and Location/attachment/active-binding guards (`guards.ts`). |
-| [catalog-access.ts](../src/server/catalog/catalog-access.ts) | Lazy catalog path resolution and shared read/write catalog opening with unload handling. |
+| [sessions/](../src/server/sessions) | `SessionAdmission` (`admission.ts`), `BindingResolver` (`bindings.ts`), and Location/attachment/active-binding guards (`guards.ts`). |
 | [rpc-handlers.ts](../src/server/rpc-handlers.ts) | `state`, `selection`, `change`, and `browse` handlers and the `changed` emitter. |
 | [hooks/](../src/server/hooks) | Context delivery (`context.ts`), compaction (`compaction.ts`), native-tool preflight (`tool-preflight.ts`), and `workspace_escape` evaluation (`permission.ts`). |
 | [tools/](../src/server/tools) | Helper tool registration (`index.ts`) and the search, status, and resolve tools. |
 | [prompts.ts](../src/server/prompts.ts) | Model-visible system text and helper tool descriptions. |
 | [failures.ts](../src/server/failures.ts) | Mapping of storage/filesystem outages to `WorkspaceError`; other failures propagate. |
-| [rpc-contract.ts](../src/shared/rpc-contract.ts) | Shared `WorkspaceRPC` contract (re-exported by [rpc.ts](../src/rpc.ts)): `state`, `selection`, `change`, `browse`, and the `changed` event. |
-| [catalog/](../src/server/catalog) | Transactions, revisions, request receipts, and pinned session bindings (`catalog.ts`); SQLite format validation, schema, and pragmas (`storage.ts`); row decoding and metadata checks (`codec.ts`); per-action handlers (`actions.ts`). |
-| [paths.ts](../src/server/filesystem/paths.ts) | Path keys, containment checks, and path expansion/resolution. |
-| [policy.ts](../src/server/filesystem/policy.ts) | Sensitive-path denial, canonicalization, root overlap, and native target checks. |
-| [safe-read.ts](../src/server/filesystem/safe-read.ts) | No-follow open flags, the cancellable fill-buffer loop, bounded reads, and UTF-8 decoding. |
-| [browse.ts](../src/server/filesystem/browse.ts) | Folder browsing for the RPC `browse` method. |
+| [catalog/](../src/server/catalog) | `CatalogAccess` (`catalog-access.ts`); transactions, revisions, request receipts, and pinned session bindings (`catalog.ts`); SQLite format validation, schema, and pragmas (`storage.ts`); row decoding and metadata checks (`codec.ts`); per-action handlers (`actions.ts`). |
+| [filesystem/](../src/server/filesystem) | Path keys, containment, and expansion (`paths.ts`); sensitive-path denial, canonicalization, root overlap, and native target checks (`policy.ts`); no-follow cancellable bounded reads with UTF-8 decoding (`safe-read.ts`); folder browsing for the RPC `browse` method (`browse.ts`). |
 | [search/](../src/server/search) | Glob/regex validation (`patterns.ts`), ignore-aware traversal (`walk.ts`), regex worker isolation (`regex-worker.ts`), and multi-root search results with bounded UTF-8 reads (`search.ts`). |
-| [instructions/](../src/server/instructions) | Shared types and `InstructionError` (`types.ts`), per-session delivery and status (`session-instructions.ts`), snapshot lifecycle and mutation preflight (`delivery.ts`), target-to-scope mapping (`scopes.ts`), bounded `AGENTS.md` reads (`sources.ts`), the delivered block (`render.ts`), and patch target parsing (`patch-targets.ts`). |
-| [tui.ts](../src/tui.ts) | Native management menus, folder selection, explicit attachment, new-session navigation, and user-facing errors. |
-| [indicator/](../src/tui/indicator) | Session-aware footer rendering (`indicator.ts`), selection polling with coalescing, backoff, cancellation, and listener cleanup (`selection-poller.ts`), and grapheme-safe label fitting (`label.ts`). |
+| [instructions/](../src/server/instructions) | Shared types and `InstructionError` (`types.ts`), `SessionInstructions` (`session-instructions.ts`), snapshot lifecycle and mutation preflight (`delivery.ts`), target-to-scope mapping (`scopes.ts`), bounded `AGENTS.md` reads (`sources.ts`), the delivered block (`render.ts`), and patch target parsing (`patch-targets.ts`). |
+| [plugin.ts](../src/tui/plugin.ts) | TUI composition: the three slash/palette commands, the one-menu-at-a-time guard, indicator registration, and disposal ([tui.ts](../src/tui.ts) re-exports it). |
+| [target.ts](../src/tui/target.ts) | The displayed session and Location a menu is pinned to, and target equality. |
+| [messages.ts](../src/tui/messages.ts) | User-facing menu, dialog, and status text. |
+| [menu/](../src/tui/menu) | `MenuSession` and the typed RPC client (`session.ts`), the main menu and entry dispatch (`main-menu.ts`), and one module per flow: create, delete, add/remove folder, switch/attach, status, and new-session navigation (`open-session.ts`). |
+| [indicator/](../src/tui/indicator) | Session-aware footer rendering (`indicator.ts`), `SelectionPoller` with coalescing, backoff, cancellation, and listener cleanup (`selection-poller.ts`), and grapheme-safe label fitting (`label.ts`). |
 
-Keep domain schemas independent of the host UI and storage. Infrastructure owns
-its filesystem/database mechanics; server composition owns native permissions and
-session identity. TUI code depends on the RPC contract, not server internals.
-Production modules must not import test fixtures.
+Keep domain schemas independent of the host UI and storage. Server modules own
+filesystem/database mechanics, native permissions, and session identity. TUI code
+depends on the RPC contract, not server internals.
 
 ## Workspace administration
 
@@ -157,19 +182,31 @@ runtime instances.
 ## Build and verification surfaces
 
 - [build.ts](../scripts/build.ts) bundles the three entrypoints into `dist`,
-  writes its standalone manifest, and copies the human-facing README.
+  writes its standalone manifest, and copies the human-facing README. Host
+  packages that must stay external are listed in
+  [externals.ts](../scripts/lib/externals.ts).
 - [pack.ts](../scripts/pack.ts) builds and archives that distribution using its
   manifest's file list. Source, tests, and the AI library are not plugin payload.
 - [start.ts](../scripts/start.ts) is an optional isolated demo launcher. Normal
   installation registers `dist` and launches OpenCode from the user's project.
 - [check-workspaces.ts](../scripts/check-workspaces.ts) exercises the actual
-  package with an isolated server/provider/TUI, but still has pre-opt-in
-  expectations that need reconciliation before fresh acceptance.
-- [workspace-server.ts](../tests/helpers/workspace-server.ts) hosts the production
-  server against mocked native APIs for unit/adapter regressions.
-- [Phase-zero fixtures](../tests/fixtures/phase-zero-plugin) are research support,
-  not production entrypoints. Some helpers and instruction regressions still
-  depend on them; do not delete them based on the directory name.
+  package with an isolated server/provider/TUI, using the support code in
+  [tests/live](../tests/live) (private TUI driver, scripted provider, terminal
+  screen). It still has pre-opt-in expectations that need reconciliation before
+  fresh acceptance.
+- Tests mirror the source folders: [tests/server](../tests/server) and
+  [tests/tui](../tests/tui) hold the unit/adapter suites.
+  [surface.test.ts](../tests/surface.test.ts) compares the observable surface
+  (tool schemas, system text, SQLite DDL, dialogs) with a golden snapshot in
+  [tests/__snapshots__](../tests/__snapshots__); a snapshot diff is a behavior
+  change, so fix the code instead of updating the snapshot.
+  [readme.test.ts](../tests/readme.test.ts) checks the README's install snippets.
+- [tests/helpers](../tests/helpers) is shared test support. In particular
+  [workspace-server.ts](../tests/helpers/workspace-server.ts) hosts the production
+  server against mocked native APIs and [tui-host.ts](../tests/helpers/tui-host.ts)
+  fakes the TUI host.
+- Formatting is Prettier over `src`, `tests`, and `scripts`: `bun run format`
+  rewrites and `bun run format:check` verifies.
 
 See [verification and approval boundaries](CONTEXT.md#verification) before
 running commands.

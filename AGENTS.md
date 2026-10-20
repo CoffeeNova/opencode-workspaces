@@ -29,11 +29,10 @@ do not invent a host capability or silently change the product contract.
 | Change storage, selection, or request admission | [sessions](src/server/sessions), [rpc-handlers.ts](src/server/rpc-handlers.ts), [catalog](src/server/catalog), [catalog tests](tests/server/catalog.test.ts), [server tests](tests/server/plugin.test.ts) |
 | Change paths, permissions, or multi-root search | [filesystem](src/server/filesystem), [search](src/server/search), [filesystem tests](tests/server/filesystem.test.ts), [search tests](tests/server/search.test.ts) |
 | Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [hooks](src/server/hooks), [instruction tests](tests/server/instructions.test.ts) |
-| Change menus, browsing, or session navigation | [tui.ts](src/tui.ts), [TUI tests](tests/tui/menu.test.ts) |
+| Change menus, browsing, or session navigation | [menu](src/tui/menu), [plugin.ts](src/tui/plugin.ts), [target.ts](src/tui/target.ts), [messages.ts](src/tui/messages.ts), [TUI tests](tests/tui/menu.test.ts) |
 | Change the footer indicator | [indicator/](src/tui/indicator), [label tests](tests/tui/label.test.ts), [TUI tests](tests/tui/menu.test.ts) |
 | Change building, packaging, or the optional launcher | [build.ts](scripts/build.ts), [pack.ts](scripts/pack.ts), [start.ts](scripts/start.ts), [package.json](package.json) |
-| Work on actual-package acceptance | [check-workspaces.ts](scripts/check-workspaces.ts), [verification boundaries](.agents/CONTEXT.md#verification) |
-| Work on historical host probes | [Fixtures](tests/fixtures/phase-zero-plugin), [architecture notes](.agents/ARCHITECTURE.md#build-and-verification-surfaces) |
+| Work on actual-package acceptance | [check-workspaces.ts](scripts/check-workspaces.ts), [live support](tests/live), [verification boundaries](.agents/CONTEXT.md#verification) |
 
 ## Skills, commands, and rules
 
@@ -84,18 +83,20 @@ project's existing helpers and validated boundaries.
 For code changes, run the relevant existing checks from the repository root:
 
 ```powershell
+bun run format:check
 bun run bun-typecheck
 bun test
 ```
 
-Use focused tests while iterating. Production-only checking is `bun run
-typecheck`; build/package changes also use `bun run build` and, when relevant,
+Use focused tests while iterating. `bun run format` applies Prettier to `src`,
+`tests`, and `scripts`. Production-only checking is `bun run typecheck`;
+build/package changes also use `bun run build` and, when relevant,
 `bun run pack`. See [the verification matrix](.agents/CONTEXT.md#verification).
 
 Documentation-only work needs link/anchor and customization-metadata validation
 plus `git diff --check`, not a build or tests.
 
-OpenCode, the optional launcher, actual-package acceptance, and live capability
+OpenCode, the optional launcher, actual-package acceptance, and live TUI
 scripts require separate user approval. Build or unit-test success is not proof
 of live TUI, instruction, or cross-root behavior.
 
