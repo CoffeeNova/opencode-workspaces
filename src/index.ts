@@ -12,11 +12,12 @@ import { expandPath, isInside, pathKey, resolvePath, slash } from "./server/file
 import { canonicalDirectory, checkedTarget, overlapsRoots } from "./server/filesystem/policy.ts"
 import { searchWorkspace, type SearchInput } from "./server/search/search.ts"
 import {
-  instructionBlock,
-  instructionDelivery,
+  createInstructionDelivery,
   InstructionError,
-  patchTargets,
-} from "./instructions/delivery.ts"
+  type InstructionDelivery,
+} from "./server/instructions/delivery.ts"
+import { patchTargets } from "./server/instructions/patch-targets.ts"
+import { instructionBlock } from "./server/instructions/render.ts"
 import { WorkspaceRPC } from "./rpc.ts"
 
 function failure(error: unknown): WorkspaceError {
@@ -89,7 +90,7 @@ export default Plugin.define({
     const inactive = new Map<string, Inactive>()
     const started = new Set<string>()
     let admissionFull = false
-    const deliveries = new Map<string, ReturnType<typeof instructionDelivery>>()
+    const deliveries = new Map<string, InstructionDelivery>()
     const instructionStates = new Map<string, Selection["instructions"]>()
     function requestStarted(sessionID: string) {
       if (started.has(sessionID) || admissionFull) return
@@ -360,7 +361,7 @@ export default Plugin.define({
           )
         let delivery = deliveries.get(event.sessionID)
         if (!delivery) {
-          delivery = instructionDelivery(binding.workspace.roots, async (source) => {
+          delivery = createInstructionDelivery(binding.workspace.roots, async (source) => {
             await ctx.permission.assert({
               sessionID: event.sessionID,
               action: "external_directory",

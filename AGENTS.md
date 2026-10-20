@@ -28,7 +28,7 @@ do not invent a host capability or silently change the product contract.
 | Change schemas or the RPC contract | [domain.ts](src/domain.ts), [rpc.ts](src/rpc.ts) |
 | Change storage, selection, or request admission | [index.ts](src/index.ts), [catalog.ts](src/infrastructure/catalog.ts), [catalog tests](tests/catalog.test.ts), [server tests](tests/workspaces.test.ts) |
 | Change paths, permissions, or multi-root search | [filesystem](src/server/filesystem), [search.ts](src/infrastructure/search.ts), [filesystem tests](tests/server/filesystem.test.ts), [search tests](tests/server/search.test.ts) |
-| Change instruction delivery or native mutation preflight | [delivery.ts](src/instructions/delivery.ts), [index.ts](src/index.ts), [instruction tests](tests/instructions-probe.test.ts) |
+| Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [index.ts](src/index.ts), [instruction tests](tests/server/instructions.test.ts) |
 | Change menus, browsing, or session navigation | [tui.ts](src/tui.ts), [TUI tests](tests/workspace-tui.test.ts) |
 | Change the footer indicator | [indicator.ts](src/tui/indicator.ts), [TUI tests](tests/workspace-tui.test.ts) |
 | Change building, packaging, or the optional launcher | [build.ts](scripts/build.ts), [pack.ts](scripts/pack.ts), [start.ts](scripts/start.ts), [package.json](package.json) |

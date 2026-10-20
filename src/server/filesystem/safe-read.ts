@@ -22,7 +22,7 @@ export async function fillBuffer(handle: fs.FileHandle, buffer: Buffer, signal?:
 }
 
 // Search's bounded read: reads at most min(limit, size) bytes and re-checks the realpath
-// after reading. Instruction sources use their own stricter reader in instructions/delivery.ts.
+// after reading. Instruction sources use their own stricter reader in instructions/sources.ts.
 export async function boundedRead(
   file: string,
   limit: number,

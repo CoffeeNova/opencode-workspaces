@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { instructionDelivery } from "../../src/instructions/delivery.ts"
+import { createInstructionDelivery } from "../../src/server/instructions/delivery.ts"
 import { slash } from "../../src/server/filesystem/paths.ts"
 import {
   canonicalTarget,
@@ -103,7 +103,7 @@ describe("production native path policy", () => {
     "instruction scopes deduplicate case variants of one directory",
     async () => {
       await h.write(h.docs, "AGENTS.md", "docs rules")
-      const delivery = instructionDelivery(
+      const delivery = createInstructionDelivery(
         [{ alias: "docs", path: h.docs.toLowerCase() }],
         async () => {},
       )
