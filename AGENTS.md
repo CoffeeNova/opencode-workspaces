@@ -25,10 +25,10 @@ do not invent a host capability or silently change the product contract.
 | --- | --- |
 | Install or explain the plugin | [README](README.md) |
 | Understand behavior and constraints | [Context](.agents/CONTEXT.md), [architecture](.agents/ARCHITECTURE.md) |
-| Change schemas or the RPC contract | [domain.ts](src/domain.ts), [rpc.ts](src/rpc.ts) |
-| Change storage, selection, or request admission | [index.ts](src/index.ts), [catalog](src/server/catalog), [catalog tests](tests/server/catalog.test.ts), [server tests](tests/server/plugin.test.ts) |
+| Change schemas or the RPC contract | [schemas.ts](src/shared/schemas.ts), [rpc-contract.ts](src/shared/rpc-contract.ts) |
+| Change storage, selection, or request admission | [sessions](src/server/sessions), [rpc-handlers.ts](src/server/rpc-handlers.ts), [catalog](src/server/catalog), [catalog tests](tests/server/catalog.test.ts), [server tests](tests/server/plugin.test.ts) |
 | Change paths, permissions, or multi-root search | [filesystem](src/server/filesystem), [search](src/server/search), [filesystem tests](tests/server/filesystem.test.ts), [search tests](tests/server/search.test.ts) |
-| Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [index.ts](src/index.ts), [instruction tests](tests/server/instructions.test.ts) |
+| Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [hooks](src/server/hooks), [instruction tests](tests/server/instructions.test.ts) |
 | Change menus, browsing, or session navigation | [tui.ts](src/tui.ts), [TUI tests](tests/workspace-tui.test.ts) |
 | Change the footer indicator | [indicator.ts](src/tui/indicator.ts), [TUI tests](tests/workspace-tui.test.ts) |
 | Change building, packaging, or the optional launcher | [build.ts](scripts/build.ts), [pack.ts](scripts/pack.ts), [start.ts](scripts/start.ts), [package.json](package.json) |

@@ -8,8 +8,10 @@ dialogs; it never opens the catalog or asks a model to manage workspaces.
 
 ```text
 OpenCode server
-  src/index.ts
-    domain.ts + rpc.ts
+  src/index.ts -> server/plugin.ts
+    server/runtime.ts -> sessions/, catalog-access.ts, session-instructions.ts
+    server/rpc-handlers.ts, server/hooks/, server/tools/
+    shared/{schemas,errors,limits,rpc-contract}.ts + rpc.ts
     server/catalog/{catalog,storage,codec,actions}.ts -> SQLite
     server/filesystem/{paths,policy,safe-read,browse}.ts
     server/search/ -> server/filesystem + isolated regex worker
@@ -24,16 +26,24 @@ OpenCode TUI
 
 | Module | Responsibility |
 | --- | --- |
-| [domain.ts](../src/domain.ts) | Zod schemas and inferred types for definitions, bindings, actions, changes, and selection metadata. |
-| [index.ts](../src/index.ts) | Server composition, catalog lifecycle, session admission, RPC handlers, context hooks, native-tool preflight, and helper tools. |
-| [rpc.ts](../src/rpc.ts) | Shared `WorkspaceRPC` contract: `state`, `selection`, `change`, `browse`, and the `changed` event. |
+| [schemas.ts](../src/shared/schemas.ts) | Zod schemas and inferred types for definitions, bindings, actions, changes, and selection metadata. |
+| [plugin.ts](../src/server/plugin.ts) | Server composition: option validation, runtime creation, registration order, and disposal ([index.ts](../src/index.ts) re-exports it). |
+| [runtime.ts](../src/server/runtime.ts) | The `ServerRuntime` owners passed to handlers, hooks, and tools. |
+| [sessions/](../src/server/sessions) | Request admission markers (`admission.ts`), binding resolution and caching (`bindings.ts`), and Location/attachment/active-binding guards (`guards.ts`). |
+| [catalog-access.ts](../src/server/catalog/catalog-access.ts) | Lazy catalog path resolution and shared read/write catalog opening with unload handling. |
+| [rpc-handlers.ts](../src/server/rpc-handlers.ts) | `state`, `selection`, `change`, and `browse` handlers and the `changed` emitter. |
+| [hooks/](../src/server/hooks) | Context delivery (`context.ts`), compaction (`compaction.ts`), native-tool preflight (`tool-preflight.ts`), and `workspace_escape` evaluation (`permission.ts`). |
+| [tools/](../src/server/tools) | Helper tool registration (`index.ts`) and the search, status, and resolve tools. |
+| [prompts.ts](../src/server/prompts.ts) | Model-visible system text and helper tool descriptions. |
+| [failures.ts](../src/server/failures.ts) | Mapping of storage/filesystem outages to `WorkspaceError`; other failures propagate. |
+| [rpc-contract.ts](../src/shared/rpc-contract.ts) | Shared `WorkspaceRPC` contract (re-exported by [rpc.ts](../src/rpc.ts)): `state`, `selection`, `change`, `browse`, and the `changed` event. |
 | [catalog/](../src/server/catalog) | Transactions, revisions, request receipts, and pinned session bindings (`catalog.ts`); SQLite format validation, schema, and pragmas (`storage.ts`); row decoding and metadata checks (`codec.ts`); per-action handlers (`actions.ts`). |
 | [paths.ts](../src/server/filesystem/paths.ts) | Path keys, containment checks, and path expansion/resolution. |
 | [policy.ts](../src/server/filesystem/policy.ts) | Sensitive-path denial, canonicalization, root overlap, and native target checks. |
 | [safe-read.ts](../src/server/filesystem/safe-read.ts) | No-follow open flags, the cancellable fill-buffer loop, bounded reads, and UTF-8 decoding. |
 | [browse.ts](../src/server/filesystem/browse.ts) | Folder browsing for the RPC `browse` method. |
 | [search/](../src/server/search) | Glob/regex validation (`patterns.ts`), ignore-aware traversal (`walk.ts`), regex worker isolation (`regex-worker.ts`), and multi-root search results with bounded UTF-8 reads (`search.ts`). |
-| [instructions/](../src/server/instructions) | Snapshot lifecycle and mutation preflight (`delivery.ts`), target-to-scope mapping (`scopes.ts`), bounded `AGENTS.md` reads (`sources.ts`), the delivered block (`render.ts`), and patch target parsing (`patch-targets.ts`). |
+| [instructions/](../src/server/instructions) | Shared types and `InstructionError` (`types.ts`), per-session delivery and status (`session-instructions.ts`), snapshot lifecycle and mutation preflight (`delivery.ts`), target-to-scope mapping (`scopes.ts`), bounded `AGENTS.md` reads (`sources.ts`), the delivered block (`render.ts`), and patch target parsing (`patch-targets.ts`). |
 | [tui.ts](../src/tui.ts) | Native management menus, folder selection, explicit attachment, new-session navigation, and user-facing errors. |
 | [indicator.ts](../src/tui/indicator.ts) | Session-aware footer rendering, selection reconciliation, cancellation, and listener cleanup. |
 
