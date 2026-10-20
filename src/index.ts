@@ -10,7 +10,7 @@ import { Catalog } from "./infrastructure/catalog.ts"
 import { browseDirectory } from "./server/filesystem/browse.ts"
 import { expandPath, isInside, pathKey, resolvePath, slash } from "./server/filesystem/paths.ts"
 import { canonicalDirectory, checkedTarget, overlapsRoots } from "./server/filesystem/policy.ts"
-import { searchWorkspace, type SearchInput } from "./infrastructure/search.ts"
+import { searchWorkspace, type SearchInput } from "./server/search/search.ts"
 import {
   instructionBlock,
   instructionDelivery,

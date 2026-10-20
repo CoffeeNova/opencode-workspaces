@@ -3,14 +3,16 @@ import * as fs from "node:fs/promises"
 import path from "node:path"
 import {
   searchWorkspace,
-  walk,
   type GlobSearchInput,
   type GlobSearchResult,
   type GrepSearchInput,
   type GrepSearchResult,
   type SearchInput,
   type SearchResult,
-} from "../../src/infrastructure/search.ts"
+} from "../../src/server/search/search.ts"
+import { RegexMatcher } from "../../src/server/search/regex-worker.ts"
+import { walk } from "../../src/server/search/walk.ts"
+import { WorkspaceError } from "../../src/shared/errors.ts"
 import { fixture, unix } from "../helpers/filesystem-fixture.ts"
 
 let h: Awaited<ReturnType<typeof fixture>>
@@ -204,5 +206,17 @@ describe("session workspace search service", () => {
     expect(result.matches).toEqual([{ file: "src:/visible.txt", line: 1, text: "needle" }])
     expect(result.roots[0]).toEqual({ alias: "docs", status: "truncated", code: "SEARCH_LIMIT" })
     expect(result.partial).toBe(true)
+  })
+
+  test("regex matcher rejects with REGEX_TIMEOUT once its timeout elapses and still closes", async () => {
+    const matcher = new RegexMatcher("zzz", 1)
+    const content = "line of text without a hit\n".repeat(400_000)
+    const failure = await matcher.match(content, 1, h.controller.signal).catch((error) => error)
+    expect(failure).toBeInstanceOf(WorkspaceError)
+    expect(failure.code).toBe("REGEX_TIMEOUT")
+    expect(failure.message).toBe(
+      "REGEX_TIMEOUT: Fallback regex exceeded its one-second timeout; simplify the pattern or install ripgrep",
+    )
+    await matcher.close()
   })
 })

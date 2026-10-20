@@ -12,7 +12,7 @@ OpenCode server
     domain.ts + rpc.ts
     infrastructure/catalog.ts -> SQLite
     server/filesystem/{paths,policy,safe-read,browse}.ts
-    infrastructure/search.ts -> server/filesystem + isolated regex worker
+    server/search/ -> server/filesystem + isolated regex worker
     instructions/delivery.ts -> scoped AGENTS.md snapshots
 
 OpenCode TUI
@@ -32,7 +32,7 @@ OpenCode TUI
 | [policy.ts](../src/server/filesystem/policy.ts) | Sensitive-path denial, canonicalization, root overlap, and native target checks. |
 | [safe-read.ts](../src/server/filesystem/safe-read.ts) | No-follow open flags, the cancellable fill-buffer loop, bounded reads, and UTF-8 decoding. |
 | [browse.ts](../src/server/filesystem/browse.ts) | Folder browsing for the RPC `browse` method. |
-| [search.ts](../src/infrastructure/search.ts) | Ignore-aware traversal, bounded UTF-8 reads, regex worker isolation, and multi-root search results. |
+| [search/](../src/server/search) | Glob/regex validation (`patterns.ts`), ignore-aware traversal (`walk.ts`), regex worker isolation (`regex-worker.ts`), and multi-root search results with bounded UTF-8 reads (`search.ts`). |
 | [delivery.ts](../src/instructions/delivery.ts) | Scoped instruction discovery, request snapshots, content fingerprints, mutation preflight, compaction invalidation, and patch target parsing. |
 | [tui.ts](../src/tui.ts) | Native management menus, folder selection, explicit attachment, new-session navigation, and user-facing errors. |
 | [indicator.ts](../src/tui/indicator.ts) | Session-aware footer rendering, selection reconciliation, cancellation, and listener cleanup. |
