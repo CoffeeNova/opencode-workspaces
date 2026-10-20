@@ -50,39 +50,24 @@ export function isolatedEnvironment(base: string): Record<string, string> {
   }
 }
 
-export async function createCapabilityFixture(providerOrigin: string) {
+export async function createLiveFixture(providerOrigin: string) {
   if (process.platform !== "win32") {
     throw new Error("This capability harness currently verifies Windows only; validate machine-config isolation before porting it")
   }
   const parent = path.join(tmpdir(), "opencode")
   await fs.mkdir(parent, { recursive: true })
-  const base = await fs.realpath(await fs.mkdtemp(path.join(parent, "workspace-phase-zero-")))
+  const base = await fs.realpath(await fs.mkdtemp(path.join(parent, "workspace-live-")))
   const launch = path.join(base, "launch")
   const other = path.join(base, "other-location")
   const rootA = path.join(base, "repo a")
   const rootB = path.join(base, "repo-b")
   const plain = path.join(base, "ordinary-folder")
-  const packageDirectory = path.join(base, "probe-package")
   const env = isolatedEnvironment(base)
-  for (const directory of [launch, other, rootA, rootB, plain, packageDirectory, env.HOME!, env.OPENCODE_CONFIG_DIR!, path.dirname(env.OPENCODE_DB!)]) {
+  for (const directory of [launch, other, rootA, rootB, plain, env.HOME!, env.OPENCODE_CONFIG_DIR!, path.dirname(env.OPENCODE_DB!)]) {
     await fs.mkdir(directory, { recursive: true })
   }
-  const source = path.resolve(import.meta.dir, "../fixtures/phase-zero-plugin")
-  const build = await Bun.build({
-    entrypoints: ["index.ts", "tui.ts", "rpc.ts"].map((name) => path.join(source, name)),
-    outdir: packageDirectory,
-    target: "bun",
-    external: ["@opencode/plugin", "@opencode/plugin/*", "@opencode/schema/*", "effect", "effect/*"],
-  })
-  if (!build.success) throw new AggregateError(build.logs, "Capability fixture did not build")
-  const manifest = await Bun.file(path.join(source, "package.json")).json()
-  manifest.exports = { ".": "./index.js", "./tui": "./tui.js", "./rpc": "./rpc.js" }
-  await fs.writeFile(path.join(packageDirectory, "package.json"), JSON.stringify(manifest, null, 2))
-  // Resolve the tested SDK through development dependencies; fixture code is built/copied.
-  await fs.symlink(path.resolve(import.meta.dir, "../../node_modules"), path.join(packageDirectory, "node_modules"), process.platform === "win32" ? "junction" : "dir")
   const config = {
     $schema: "https://opencode.ai/config.json",
-    plugins: [{ package: slash(packageDirectory), options: { fixtureDirectory: base, providerOrigin } }],
     model: "workspace-fixture/fixture-coder",
     providers: {
       "workspace-fixture": {
@@ -104,7 +89,7 @@ export async function createCapabilityFixture(providerOrigin: string) {
     shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
   }
   await fs.writeFile(path.join(base, "formatter.cjs"), `const fs = require('node:fs')\nfs.appendFileSync(process.argv[2], 'FORMATTED\\n')\nfs.appendFileSync(${JSON.stringify(path.join(base, "formatter-runs.jsonl"))}, JSON.stringify({ file: process.argv[2], cwd: process.cwd() }) + '\\n')\n`)
-  for (const directory of [launch, other]) await fs.writeFile(path.join(directory, "opencode.json"), JSON.stringify(config, null, 2))
+  await fs.writeFile(path.join(launch, "opencode.json"), JSON.stringify(config, null, 2))
   await fs.writeFile(path.join(launch, "AGENTS.md"), "LAUNCH_RULE_MARKER: launch Location instructions.\n")
   for (const [directory, marker] of [[rootA, "ROOT_A_RULE_MARKER"], [rootB, "ROOT_B_RULE_MARKER"]] as const) {
     await fs.mkdir(path.join(directory, "src"))
@@ -124,10 +109,10 @@ export async function createCapabilityFixture(providerOrigin: string) {
     await command(["git", "add", "."], directory)
     await command(["git", "-c", "user.name=Capability Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "fixture"], directory)
   }
-  return { base, launch, other, rootA, rootB, plain, packageDirectory, env }
+  return { base, launch, other, rootA, rootB, plain, env }
 }
 
-export async function startCapabilityServer(executable: string, fixture: Awaited<ReturnType<typeof createCapabilityFixture>>) {
+export async function startLiveServer(executable: string, fixture: Awaited<ReturnType<typeof createLiveFixture>>) {
   const server = Bun.spawn([executable, "serve", "--hostname", "127.0.0.1", "--port", "0"], {
     cwd: fixture.launch, env: fixture.env, stdin: "ignore", stdout: "pipe", stderr: "pipe", windowsHide: true,
   })

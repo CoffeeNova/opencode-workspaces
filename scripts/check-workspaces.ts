@@ -3,9 +3,9 @@ import * as fs from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
 import { WorkspaceRPC } from "../src/rpc.ts"
-import { createCapabilityFixture, openCodeExecutable, slash, startCapabilityServer } from "../tests/helpers/capability-fixture.ts"
-import { openPrivateTui } from "../tests/helpers/private-tui.ts"
-import { scriptedProvider } from "../tests/helpers/scripted-provider.ts"
+import { createLiveFixture, openCodeExecutable, slash, startLiveServer } from "../tests/live/fixture.ts"
+import { openPrivateTui } from "../tests/live/private-tui.ts"
+import { scriptedProvider } from "../tests/live/scripted-provider.ts"
 
 const SearchRoots = { roots: z.array(z.object({ alias: z.string(), status: z.string() })), partial: z.boolean() }
 const GlobOutput = z.object({ files: z.array(z.string()), ...SearchRoots })
@@ -14,10 +14,10 @@ const GrepOutput = z.object({ matches: z.array(z.object({ file: z.string(), line
 // One end-to-end check of the actual package, after implementation. Reuses the
 // existing private transport/provider; there is no second workspace implementation.
 const { provider, replies, requests, nativeHold } = scriptedProvider()
-let fixture: Awaited<ReturnType<typeof createCapabilityFixture>> | undefined
-let host: Awaited<ReturnType<typeof startCapabilityServer>> | undefined
+let fixture: Awaited<ReturnType<typeof createLiveFixture>> | undefined
+let host: Awaited<ReturnType<typeof startLiveServer>> | undefined
 try {
-  fixture = await createCapabilityFixture(provider.url.origin)
+  fixture = await createLiveFixture(provider.url.origin)
   const executable = await openCodeExecutable()
   const product = path.join(fixture.base, "workspace-package")
   const build = await Bun.build({ entrypoints: ["index.ts", "tui.ts", "rpc.ts"].map((name) => path.resolve(import.meta.dir, "../src", name)), outdir: product, target: "bun", external: ["@opencode/plugin", "@opencode/plugin/*", "@opentui/core", "@opentui/solid", "@opentui/solid/*", "solid-js", "solid-js/*"] })
@@ -31,7 +31,7 @@ try {
   const configFile = path.join(fixture.launch, "opencode.json")
   const config = { ...z.looseObject({}).parse(await Bun.file(configFile).json()), plugins: [{ package: slash(product), options: { catalogPath: slash(path.join(fixture.base, "workspace-catalog.sqlite")) } }, slash(overlay)] }
   await fs.writeFile(configFile, JSON.stringify(config, null, 2))
-  host = await startCapabilityServer(executable, fixture)
+  host = await startLiveServer(executable, fixture)
   const location = { directory: slash(fixture.launch) }
   await host.client.model.list({ location })
   const inventory = await host.client.plugin.list({ location })
@@ -275,7 +275,7 @@ try {
   } finally { await blockedUI.close() }
   console.log("PASS actual indicator: blocked instruction budget is visible and session-scoped")
   await host.stop()
-  host = await startCapabilityServer(executable, fixture)
+  host = await startLiveServer(executable, fixture)
   await host.client.model.list({ location })
   const restored = await host.client.rpc(WorkspaceRPC).state({ sessionID }, { location })
   assert.equal(restored.binding?.sealed, true)

@@ -1,4 +1,9 @@
-import { heldReply, type ScriptedCall, type ScriptedReply } from "./lifecycle-capability.ts"
+export type ScriptedCall = { name: string; input: Record<string, unknown> }
+export function heldReply() {
+  return { entered: Promise.withResolvers<void>(), release: Promise.withResolvers<ScriptedCall[]>() }
+}
+export type ScriptedReply = ScriptedCall[] | ReturnType<typeof heldReply>
+
 
 // A deterministic loopback responder shared by the opt-in probes, never an AI
 // call. The native host still owns tool admission, IDs, permissions and execution.

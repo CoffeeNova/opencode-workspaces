@@ -1,13 +1,13 @@
 import { strict as assert } from "node:assert"
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { slash, type createCapabilityFixture, type startCapabilityServer } from "./capability-fixture.ts"
+import { slash, type createLiveFixture, type startLiveServer } from "./fixture.ts"
 import { terminalScreen } from "./terminal-screen.ts"
 
 // Authenticated public PTY transport. Only the spawned fixture TUI is controlled.
 export async function openPrivateTui(
-  executable: string, fixture: Awaited<ReturnType<typeof createCapabilityFixture>>,
-  host: Awaited<ReturnType<typeof startCapabilityServer>>, tag: string, sessionID?: string,
+  executable: string, fixture: Awaited<ReturnType<typeof createLiveFixture>>,
+  host: Awaited<ReturnType<typeof startLiveServer>>, tag: string, sessionID?: string,
 ) {
   assert.match(tag, /^[a-z-]+$/)
   if (sessionID) await host.client.session.get({ sessionID }) // --session can otherwise create a session.

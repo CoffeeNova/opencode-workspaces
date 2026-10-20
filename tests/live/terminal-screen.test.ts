@@ -1,13 +1,5 @@
 import { expect, test } from "bun:test"
-import { terminalScreen } from "./helpers/terminal-screen.ts"
-import { tuiTargetVisible } from "./helpers/tui-capability.ts"
-
-test("wrapped Location output preserves the case-sensitive session identity", () => {
-  const view = "C:\\Fixture\\workspace-\nphase-zero\\launch\nSession: ses_AbCd"
-  expect(tuiTargetVisible(view, "c:/fixture/workspace-phase-zero/launch", "ses_AbCd")).toBe(true)
-  expect(tuiTargetVisible(view, "c:/fixture/workspace-phase-zero/launch", "ses_abcd")).toBe(false)
-})
-
+import { terminalScreen } from "./terminal-screen.ts"
 test("VT assertions see the current screen, not text erased by later frames", async () => {
   const screen = terminalScreen(40, 8)
   try {

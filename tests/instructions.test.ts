@@ -2,7 +2,9 @@ import { afterEach, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { instructionBlock, instructionDelivery, patchTargets, sourceContent } from "./fixtures/phase-zero-plugin/instructions.ts"
+import { instructionBlock, instructionDelivery, patchTargets, type DeliveredSource } from "../src/instructions/delivery.ts"
+
+const sourceContent = (source: DeliveredSource | undefined) => source && "content" in source ? source.content : undefined
 
 const fixtures: string[] = []
 afterEach(async () => { for (const directory of fixtures.splice(0)) await fs.rm(directory, { recursive: true, force: true }) })

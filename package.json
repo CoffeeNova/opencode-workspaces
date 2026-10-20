@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "description": "Session-scoped multi-root workspaces for the OpenCode V2 terminal UI",
   "private": true,
-  "exports": { ".": "./dist/index.js", "./tui": "./dist/tui.js", "./rpc": "./dist/rpc.js" },
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js",
+    "./rpc": "./dist/rpc.js"
+  },
   "files": ["dist", "README.md"],
   "type": "module",
-  "engines": { "bun": ">=1.4.3" },
+  "engines": {
+    "bun": ">=1.4.3"
+  },
   "packageManager": "bun@1.4.3",
   "peerDependencies": {
     "@opentui/core": "0.5.17",
@@ -21,9 +27,6 @@
     "pack": "bun run scripts/pack.ts",
     "bun-typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:capabilities": "bun run tests/opencode-capabilities.ts",
-    "test:capabilities:tui": "bun run tests/opencode-capabilities.ts --tui",
-    "test:capabilities:instructions": "bun run tests/opencode-instruction-capabilities.ts",
     "check:workspaces": "bun run scripts/check-workspaces.ts"
   },
   "dependencies": {
@@ -38,7 +41,6 @@
     "@opentui/solid": "0.5.17",
     "@types/bun": "1.4.3",
     "@xterm/headless": "5.5.0",
-    "effect": "4.0.1",
     "solid-js": "1.9.15",
     "typescript": "5.8.3"
   }
