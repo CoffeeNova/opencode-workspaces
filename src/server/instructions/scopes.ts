@@ -1,10 +1,8 @@
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { errorCode } from "../../shared/errors.ts"
+import { isNotFound } from "../../shared/errors.ts"
 import { isInsideResolved, resolvedKey } from "../filesystem/paths.ts"
 import { InstructionError, type InstructionRoot } from "./types.ts"
-
-const isMissing = (error: unknown) => errorCode(error) === "ENOENT"
 
 // Maps a native target path to every directory whose AGENTS.md applies to it.
 export async function instructionDirectories(
@@ -58,7 +56,7 @@ async function assertNotLinked(lexical: string, target: string): Promise<void> {
         throw new InstructionError("UNSUPPORTED_TARGET", `Linked target: ${target}`)
       return
     } catch (error) {
-      if (!isMissing(error)) throw error
+      if (!isNotFound(error)) throw error
       suffix.unshift(path.basename(existing))
       existing = path.dirname(existing)
     }
@@ -67,7 +65,7 @@ async function assertNotLinked(lexical: string, target: string): Promise<void> {
 
 async function containingDirectory(lexical: string): Promise<string> {
   const stat = await fs.stat(lexical).catch((error: unknown) => {
-    if (!isMissing(error)) throw error
+    if (!isNotFound(error)) throw error
     return undefined
   })
   return stat?.isDirectory() ? lexical : path.dirname(lexical)

@@ -32,11 +32,12 @@ export function patchTargets(patchText: string): string[] {
   let operation: string | undefined
   let mayMove = false
   for (const line of lines) {
-    const header = FILE_HEADER.exec(line)
+    // Both groups are non-empty whenever the header matches.
+    const [, headerOperation, headerTarget] = FILE_HEADER.exec(line) ?? []
     const moved = line.slice(MOVE_PREFIX.length).trim()
-    if (header) {
-      operation = header[1]!
-      targets.push(header[2]!.trim())
+    if (headerOperation && headerTarget) {
+      operation = headerOperation
+      targets.push(headerTarget.trim())
       mayMove = operation === "Update"
     } else if (mayMove && line.startsWith(MOVE_PREFIX) && moved) {
       targets.push(moved)

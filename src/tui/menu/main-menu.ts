@@ -2,14 +2,14 @@ import type { DialogSelectOption } from "@opencode/plugin/tui/context"
 import { errorText, unreachable } from "../../shared/errors.ts"
 import type { State } from "../../shared/schemas.ts"
 import { MAIN_MENU_TEXT } from "../messages.ts"
-import { addFolder } from "./add-folder.ts"
+import { addToSavedWorkspace } from "./add-folder.ts"
 import { createWorkspace } from "./create.ts"
 import { deleteWorkspace } from "./delete.ts"
 import { detach } from "./open-session.ts"
 import { removeFolder } from "./remove-folder.ts"
 import type { MenuSession } from "./session.ts"
 import { showStatus } from "./status.ts"
-import { attachWorkspace, switchWorkspace } from "./switch.ts"
+import { switchWorkspace } from "./switch.ts"
 
 export type MenuEntry = "main" | "add" | "switch"
 
@@ -31,26 +31,14 @@ export async function runMenu(menu: MenuSession, entry: MenuEntry): Promise<void
 async function openEntry(menu: MenuSession, entry: MenuEntry): Promise<void> {
   switch (entry) {
     case "switch":
-      return switchShortcut(menu)
+      return switchWorkspace(menu)
     case "add":
-      return addShortcut(menu)
+      return addToSavedWorkspace(menu)
     case "main":
       return mainLoop(menu)
     default:
       unreachable(entry)
   }
-}
-
-// The /workspace-switch and /workspace-add shortcuts hand the chosen
-// workspace straight to the flow, which checks validity itself.
-async function switchShortcut(menu: MenuSession): Promise<void> {
-  const workspace = await menu.choose()
-  if (workspace) await attachWorkspace(menu, workspace)
-}
-
-async function addShortcut(menu: MenuSession): Promise<void> {
-  const workspace = menu.currentDefinition() ?? (await menu.choose())
-  if (workspace) await addFolder(menu, workspace)
 }
 
 async function mainLoop(menu: MenuSession): Promise<void> {
@@ -95,11 +83,6 @@ async function runAction(menu: MenuSession, action: MenuAction): Promise<boolean
   }
 }
 
-async function addToSavedWorkspace(menu: MenuSession): Promise<void> {
-  const workspace = menu.currentDefinition() ?? (await menu.choose())
-  if (workspace && menu.isValid()) await addFolder(menu, workspace)
-}
-
 function menuPlaceholder(state: State): string {
   const active = state.binding?.workspace
   if (!active) return MAIN_MENU_TEXT.noneSelected
@@ -107,7 +90,7 @@ function menuPlaceholder(state: State): string {
   return `${active.roots.length} folders${fixed}`
 }
 
-export function menuOptions(state: State): DialogSelectOption<MenuAction>[] {
+function menuOptions(state: State): DialogSelectOption<MenuAction>[] {
   const hasSaved = state.workspaces.length > 0
   const hasFolders = state.workspaces.some((workspace) => workspace.roots.length > 0)
   const options: DialogSelectOption<MenuAction>[] = []

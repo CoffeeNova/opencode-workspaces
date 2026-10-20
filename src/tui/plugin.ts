@@ -1,8 +1,9 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { errorText } from "../shared/errors.ts"
+import { workspaceClient } from "./client.ts"
 import { registerWorkspaceIndicator } from "./indicator/indicator.ts"
 import { runMenu, type MenuEntry } from "./menu/main-menu.ts"
-import { MenuSession, workspaceClient } from "./menu/session.ts"
+import { MenuSession } from "./menu/session.ts"
 import { currentTarget, type MenuTarget } from "./target.ts"
 
 // Slash name, menu entry, and command title.

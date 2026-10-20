@@ -22,7 +22,7 @@ const REGEX_WORKER = String.raw`
 const RegexHits = z.array(
   z.object({ line: z.number().int().positive(), text: z.string(), clipped: z.boolean() }),
 )
-export type RegexHit = z.infer<typeof RegexHits>[number]
+type RegexHit = z.infer<typeof RegexHits>[number]
 
 function timeoutError(): WorkspaceError {
   return new WorkspaceError(

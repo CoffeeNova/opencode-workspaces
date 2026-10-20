@@ -2,13 +2,13 @@ import type { Context, SlotMap } from "@opencode/plugin/tui/context"
 import { CliRenderEvents } from "@opentui/core"
 import { jsx } from "@opentui/solid/jsx-runtime"
 import { createComponent, createEffect, createSignal, onCleanup, Show } from "solid-js"
-import { WorkspaceRPC } from "../../shared/rpc-contract.ts"
 import type { Selection } from "../../shared/schemas.ts"
+import { workspaceClient } from "../client.ts"
 import { fitLabel, labelBudget } from "./label.ts"
 import { watchSelection } from "./selection-poller.ts"
 
 export function registerWorkspaceIndicator(context: Context) {
-  const rpc = context.client.rpc(WorkspaceRPC)
+  const rpc = workspaceClient(context)
   const refreshers = new Set<() => void>()
   const knownActive = new Set<string>()
   const unregister = context.ui.slot({

@@ -14,6 +14,14 @@ const SEARCH_RESULTS = {
   grep: SEARCH_LIMITS.grepResults,
 } as const satisfies Record<SearchKind, number>
 
+// Helper schemas offered to active sessions only; passive requests drop them.
+export const HELPER_TOOLS = [
+  "workspace_glob",
+  "workspace_grep",
+  "workspace_status",
+  "workspace_resolve",
+] as const
+
 export const STATUS_TOOL_DESCRIPTION =
   "Show this session's explicit pinned workspace selection. No global active selection; saved-definition edits do not retarget running sessions."
 

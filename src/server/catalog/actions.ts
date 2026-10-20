@@ -29,7 +29,7 @@ function saveRevision(db: Database, updated: Workspace) {
   db.query("UPDATE workspaces SET data=? WHERE id=?").run(JSON.stringify(next), next.id)
 }
 
-export function applyBindingAction(ctx: ActionContext, action: Kind<"attach"> | Kind<"detach">) {
+function applyBindingAction(ctx: ActionContext, action: Kind<"attach"> | Kind<"detach">) {
   const workspace = action.kind === "attach" ? savedWorkspace(ctx.db, action.workspaceID) : null
   if (!ctx.sessionID) throw new WorkspaceError("SESSION_REQUIRED", "Select an empty session first")
   const old = readBindingRow(ctx.db, ctx.sessionID)
@@ -53,7 +53,7 @@ export function applyBindingAction(ctx: ActionContext, action: Kind<"attach"> | 
     .run(ctx.sessionID, ctx.directory, workspace ? JSON.stringify(workspace) : null)
 }
 
-export function applyCreate(ctx: ActionContext, action: Kind<"create">) {
+function applyCreate(ctx: ActionContext, action: Kind<"create">) {
   const definitions = ctx.workspaces()
   if (definitions.some((item) => item.name === action.name))
     throw new WorkspaceError("WORKSPACE_EXISTS", "That workspace name already exists")
@@ -68,13 +68,13 @@ export function applyCreate(ctx: ActionContext, action: Kind<"create">) {
   ctx.db.query("INSERT INTO workspaces VALUES (?,?)").run(created.id, JSON.stringify(created))
 }
 
-export function applyRemove(ctx: ActionContext, action: Kind<"remove">) {
+function applyRemove(ctx: ActionContext, action: Kind<"remove">) {
   ctx.db
     .query("DELETE FROM workspaces WHERE id=?")
     .run(savedWorkspace(ctx.db, action.workspaceID).id)
 }
 
-export function applyAddRoot(ctx: ActionContext, action: Kind<"addRoot">) {
+function applyAddRoot(ctx: ActionContext, action: Kind<"addRoot">) {
   const updated = savedWorkspace(ctx.db, action.workspaceID)
   const canonicalRoot = ctx.canonicalRoot
   if (!canonicalRoot) throw new WorkspaceError("INVALID_PATH", "Missing validated root")
@@ -92,7 +92,7 @@ export function applyAddRoot(ctx: ActionContext, action: Kind<"addRoot">) {
   saveRevision(ctx.db, updated)
 }
 
-export function applyRemoveRoot(ctx: ActionContext, action: Kind<"removeRoot">) {
+function applyRemoveRoot(ctx: ActionContext, action: Kind<"removeRoot">) {
   const updated = savedWorkspace(ctx.db, action.workspaceID)
   if (!updated.roots.some((root) => root.alias === action.alias))
     throw new WorkspaceError("UNKNOWN_ROOT", "Folder registration no longer exists")

@@ -2,15 +2,13 @@ import { createHash } from "node:crypto"
 import type { Stats } from "node:fs"
 import * as fs from "node:fs/promises"
 import path from "node:path"
-import { errorCode } from "../../shared/errors.ts"
+import { isNotFound } from "../../shared/errors.ts"
 import { resolvedKey } from "../filesystem/paths.ts"
 import { fillBuffer, NO_FOLLOW_READ } from "../filesystem/safe-read.ts"
 import type { InstructionSource } from "./types.ts"
 
 type SourceBase = { path: string; scope: string }
 type StableRead = { bytes: Buffer } | { error: string }
-
-const isMissing = (error: unknown) => errorCode(error) === "ENOENT"
 
 // Reads the AGENTS.md of one directory scope into a loaded, missing or error status.
 export async function readInstructionSource(
@@ -91,7 +89,7 @@ async function readStableBytes(file: string, stat: Stats, fileLimit: number): Pr
 }
 
 function failedSource(base: SourceBase, error: unknown): InstructionSource {
-  if (isMissing(error)) return { ...base, status: "missing" }
+  if (isNotFound(error)) return { ...base, status: "missing" }
   return {
     ...base,
     status: "error",

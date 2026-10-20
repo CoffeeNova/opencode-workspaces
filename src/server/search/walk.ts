@@ -160,9 +160,8 @@ export async function* walk(
   const scan = { visited: 0 }
   for (const root of roots) {
     const queue: PendingDirectory[] = [{ directory: root.path, layers: [] }]
-    while (queue.length) {
+    for (let current = queue.pop(); current; current = queue.pop()) {
       signal.throwIfAborted()
-      const current = queue.pop()!
       await assertDirectoryUnchanged(current.directory, root)
       const layers = await withGitignore(current, signal, options)
       const entries = await listEntries(

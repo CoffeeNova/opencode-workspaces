@@ -6,16 +6,16 @@ import { errorCode, WorkspaceError } from "../../shared/errors.ts"
 import { CATALOG_LIMITS } from "../../shared/limits.ts"
 import { resolvePath } from "../filesystem/paths.ts"
 
-export const APPLICATION_ID = 0x57534d32
-export const STORAGE_VERSION = 2
-export const SCHEMA_SQL = `PRAGMA application_id=${APPLICATION_ID}; PRAGMA user_version=${STORAGE_VERSION};
+const APPLICATION_ID = 0x57534d32
+const STORAGE_VERSION = 2
+const SCHEMA_SQL = `PRAGMA application_id=${APPLICATION_ID}; PRAGMA user_version=${STORAGE_VERSION};
           CREATE TABLE catalog (catalogID TEXT NOT NULL, revision INTEGER NOT NULL);
           CREATE TABLE workspaces (id TEXT PRIMARY KEY, data TEXT NOT NULL);
           CREATE TABLE bindings (sessionID TEXT PRIMARY KEY, directory TEXT NOT NULL, workspace TEXT, sealed INTEGER NOT NULL CHECK(sealed IN (0,1)));
           CREATE TABLE receipts (requestID TEXT PRIMARY KEY, fingerprint TEXT NOT NULL);`
 
-export type CatalogTarget = { file: string; exists: boolean }
-export type CatalogFormat = "ready" | "empty"
+type CatalogTarget = { file: string; exists: boolean }
+type CatalogFormat = "ready" | "empty"
 
 export async function locateCatalog(
   raw: string,

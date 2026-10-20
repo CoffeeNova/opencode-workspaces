@@ -62,7 +62,7 @@ type RootJob = {
 type RootProgress = { count: number; bytes: number; permissionRejected: boolean }
 type BeforeRead = (file: string) => Promise<void>
 
-export function rootQuota(limit: number, rootCount: number, index: number): number {
+function rootQuota(limit: number, rootCount: number, index: number): number {
   return Math.floor(limit / rootCount) + (index < limit % rootCount ? 1 : 0)
 }
 

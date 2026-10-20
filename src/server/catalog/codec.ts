@@ -5,8 +5,8 @@ import { Binding, Workspace } from "../../shared/schemas.ts"
 import { expandPath, pathKey } from "../filesystem/paths.ts"
 import { assertNotDenied } from "../filesystem/policy.ts"
 
-export type BindingRow = { workspace: string | null; sealed: number; directory: string }
-export type CatalogMeta = { catalogID: string; revision: number }
+type BindingRow = { workspace: string | null; sealed: number; directory: string }
+type CatalogMeta = { catalogID: string; revision: number }
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 

@@ -1,9 +1,9 @@
 import type { Context } from "@opencode/plugin/tui/context"
 import { INDICATOR_TIMING } from "../../shared/limits.ts"
 import type { Selection } from "../../shared/schemas.ts"
-import type { WorkspaceClient } from "../menu/session.ts"
+import type { WorkspaceClient } from "../client.ts"
 
-export type SelectionWatch = {
+type SelectionWatch = {
   rpc: WorkspaceClient
   context: Context
   sessionID: string

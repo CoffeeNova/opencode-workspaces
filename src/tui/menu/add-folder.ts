@@ -4,6 +4,12 @@ import { ADD_FOLDER_TEXT } from "../messages.ts"
 import { openInNewSession } from "./open-session.ts"
 import type { MenuSession } from "./session.ts"
 
+// Adds to the displayed session's workspace, or asks which saved one to extend.
+export async function addToSavedWorkspace(menu: MenuSession): Promise<void> {
+  const workspace = menu.currentDefinition() ?? (await menu.choose())
+  if (workspace && menu.isValid()) await addFolder(menu, workspace)
+}
+
 // Browses server folders until one is added or the user stops. Each step
 // returns the next folder to browse, or undefined to stop.
 export async function addFolder(menu: MenuSession, workspace: Workspace): Promise<void> {

@@ -63,6 +63,10 @@ export function errorCode(error: unknown): string | undefined {
     : undefined
 }
 
+export function isNotFound(error: unknown): boolean {
+  return errorCode(error) === "ENOENT"
+}
+
 export function isUnavailableCode(code: string | undefined): code is UnavailableCode {
   return (
     code !== undefined &&

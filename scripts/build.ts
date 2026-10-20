@@ -1,9 +1,8 @@
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
-import { HOST_EXTERNALS } from "./lib/externals.ts"
+import { ENTRYPOINTS, HOST_EXTERNALS } from "./lib/externals.ts"
 
-const ENTRYPOINTS = ["index.ts", "tui.ts", "rpc.ts"]
 const EXPORTS = { ".": "./index.js", "./tui": "./tui.js", "./rpc": "./rpc.js" }
 
 const root = path.resolve(import.meta.dir, "..")

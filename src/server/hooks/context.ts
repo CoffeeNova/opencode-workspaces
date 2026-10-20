@@ -4,12 +4,11 @@ import type { Catalog } from "../catalog/catalog.ts"
 import { slash } from "../filesystem/paths.ts"
 import { instructionBlock } from "../instructions/render.ts"
 import type { InstructionSnapshot } from "../instructions/types.ts"
-import { workspaceSystemText } from "../prompts.ts"
+import { HELPER_TOOLS, workspaceSystemText } from "../prompts.ts"
 import type { ChangedEmitter } from "../rpc-handlers.ts"
 import type { ServerRuntime } from "../runtime.ts"
 import type { InactiveResolution } from "../sessions/bindings.ts"
 import { captureActiveBinding, verifySessionLocation } from "../sessions/guards.ts"
-import { HELPER_TOOLS } from "../tools/index.ts"
 
 export async function registerContextHook(runtime: ServerRuntime, emitChanged: ChangedEmitter) {
   await runtime.ctx.session.hook("context", async (event) => {

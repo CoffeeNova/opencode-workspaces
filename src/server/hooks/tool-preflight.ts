@@ -10,7 +10,7 @@ import { InstructionError } from "../instructions/types.ts"
 import type { ServerRuntime } from "../runtime.ts"
 import { verifySessionLocation } from "../sessions/guards.ts"
 
-export const NATIVE_GUARDED_TOOLS: readonly string[] = [
+const NATIVE_GUARDED_TOOLS: readonly string[] = [
   "read",
   "edit",
   "write",
@@ -123,7 +123,7 @@ async function coveredTargets(
   return covered
 }
 
-export function nativeTargets(tool: string, input: NativeTarget): string[] {
+function nativeTargets(tool: string, input: NativeTarget): string[] {
   if (tool === "patch" && input.patchText !== undefined) return patchTargets(input.patchText)
   if (tool === "shell" && input.workdir !== undefined) return [input.workdir]
   if (tool !== "shell" && input.path !== undefined) return [input.path]

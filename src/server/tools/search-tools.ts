@@ -19,8 +19,8 @@ const SearchExclude = z
   .max(SEARCH_LIMITS.excludes)
   .optional()
 
-export const GlobSearch = z.object({ ...SearchFields, exclude: SearchExclude }).strict()
-export const GrepSearch = z
+const GlobSearch = z.object({ ...SearchFields, exclude: SearchExclude }).strict()
+const GrepSearch = z
   .object({
     ...SearchFields,
     include: z.string().min(1).max(SEARCH_LIMITS.patternLength).optional(),
@@ -28,7 +28,7 @@ export const GrepSearch = z
   })
   .strict()
 
-export function parseSearchInput(kind: SearchKind, raw: unknown): SearchInput | undefined {
+function parseSearchInput(kind: SearchKind, raw: unknown): SearchInput | undefined {
   if (kind === "glob") {
     const parsed = GlobSearch.safeParse(raw)
     return parsed.success ? { kind, ...parsed.data } : undefined

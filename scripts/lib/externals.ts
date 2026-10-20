@@ -8,3 +8,6 @@ export const HOST_EXTERNALS = [
   "solid-js",
   "solid-js/*",
 ]
+
+// Source files under src/ that become the package's bundle entrypoints.
+export const ENTRYPOINTS = ["index.ts", "tui.ts", "rpc.ts"]

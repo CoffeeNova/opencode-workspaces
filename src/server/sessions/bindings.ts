@@ -8,7 +8,7 @@ import { pathKey } from "../filesystem/paths.ts"
 export type ActiveBinding = Binding & { workspace: Workspace }
 export type InactiveResolution =
   { mode: "passive" } | { mode: "unavailable"; error: WorkspaceError }
-export type Resolution = InactiveResolution | { mode: "active"; binding: ActiveBinding }
+type Resolution = InactiveResolution | { mode: "active"; binding: ActiveBinding }
 
 // Resolves each session's pinned binding. Sessions once seen active fail closed;
 // inactive results are cached (bounded) so passive requests skip the catalog.

@@ -13,7 +13,7 @@ import {
 } from "../tests/live/fixture.ts"
 import { openPrivateTui, type PrivateTui } from "../tests/live/private-tui.ts"
 import { scriptedProvider, type ScriptedProvider } from "../tests/live/scripted-provider.ts"
-import { HOST_EXTERNALS } from "./lib/externals.ts"
+import { ENTRYPOINTS, HOST_EXTERNALS } from "./lib/externals.ts"
 
 // One end-to-end check of the actual package, after implementation. Reuses the
 // existing private transport/provider; there is no second workspace implementation.
@@ -135,9 +135,7 @@ function guardedFiles(fixture: LiveFixture) {
 
 async function buildProduct(product: string) {
   const build = await Bun.build({
-    entrypoints: ["index.ts", "tui.ts", "rpc.ts"].map((name) =>
-      path.resolve(import.meta.dir, "../src", name),
-    ),
+    entrypoints: ENTRYPOINTS.map((name) => path.resolve(import.meta.dir, "../src", name)),
     outdir: product,
     target: "bun",
     external: HOST_EXTERNALS,

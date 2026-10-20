@@ -1,14 +1,8 @@
 import type { Context } from "@opencode/plugin/tui/context"
-import { WorkspaceRPC } from "../../shared/rpc-contract.ts"
 import type { Action, State, Workspace } from "../../shared/schemas.ts"
+import type { WorkspaceClient } from "../client.ts"
 import { CHOOSE_TEXT } from "../messages.ts"
 import { currentTarget, isSameTarget, type MenuTarget } from "../target.ts"
-
-export function workspaceClient(context: Context) {
-  return context.client.rpc(WorkspaceRPC)
-}
-
-export type WorkspaceClient = ReturnType<typeof workspaceClient>
 
 type Indicator = { refresh(): void }
 

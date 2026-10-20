@@ -18,14 +18,6 @@ export class SessionAdmission {
     )
   }
 
-  hasStarted(sessionID: string): boolean {
-    return this.started.has(sessionID)
-  }
-
-  get saturated(): boolean {
-    return this.full
-  }
-
   admits(sessionID: string | undefined): boolean {
     return !!sessionID && !this.full && !this.started.has(sessionID)
   }

@@ -13,6 +13,7 @@ export type ChangedEmitter = (payload: z.infer<typeof ChangedEvent>) => Promise<
 type WorkspaceCall = RpcCallContext<(typeof WorkspaceRPC)["methods"]["state"]>
 
 export async function registerRpcHandlers(runtime: ServerRuntime): Promise<ChangedEmitter> {
+  // Only called from handlers, which run after registration has assigned `rpc`.
   const emitChanged: ChangedEmitter = (payload) => rpc.events.emit("changed", payload)
   const rpc = await runtime.ctx.rpc.register(WorkspaceRPC, {
     selection: (input, call) => handle(call, () => readSelection(runtime, input.sessionID)),
