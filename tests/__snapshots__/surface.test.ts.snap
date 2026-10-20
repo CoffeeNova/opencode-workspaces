@@ -1,0 +1,1374 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`tool surface 1`] = `
+[
+  {
+    "description": "Search this session's pinned workspace file paths by relative glob (also alias:/glob). Defaults to all roots; optional alias narrows to one. Honors nested .gitignore and exclude globs; skips sensitive paths and links. Deterministic per-root quotas share 200 results. Reports partial/truncated/unavailable roots. Grep skips binary and >200 KiB files; scan/byte budgets and cancellation apply.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "alias": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_-]+$",
+          "type": "string",
+        },
+        "exclude": {
+          "items": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string",
+          },
+          "maxItems": 32,
+          "type": "array",
+        },
+        "pattern": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "pattern",
+      ],
+      "type": "object",
+    },
+    "name": "workspace_glob",
+    "options": {
+      "codemode": false,
+    },
+  },
+  {
+    "description": "Search this session's pinned workspace UTF-8 content by JavaScript regex, optionally filtered by include glob. Defaults to all roots; optional alias narrows to one. Honors nested .gitignore and exclude globs; skips sensitive paths and links. Deterministic per-root quotas share 100 results. Reports partial/truncated/unavailable roots. Grep skips binary and >200 KiB files; scan/byte budgets and cancellation apply.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "alias": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_-]+$",
+          "type": "string",
+        },
+        "exclude": {
+          "items": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string",
+          },
+          "maxItems": 32,
+          "type": "array",
+        },
+        "include": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string",
+        },
+        "pattern": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "pattern",
+      ],
+      "type": "object",
+    },
+    "name": "workspace_grep",
+    "options": {
+      "codemode": false,
+    },
+  },
+  {
+    "description": "Show this session's explicit pinned workspace selection. No global active selection; saved-definition edits do not retarget running sessions.",
+    "input": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object",
+    },
+    "name": "workspace_status",
+    "options": {
+      "codemode": false,
+    },
+  },
+  {
+    "description": "Resolve alias:/relative/path to a canonical absolute native-tool path in this session. Prepares scoped instructions for the next model request; never reads file contents or changes files.",
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "path",
+      ],
+      "type": "object",
+    },
+    "name": "workspace_resolve",
+    "options": {
+      "codemode": false,
+    },
+  },
+]
+`;
+
+exports[`system context text 1`] = `
+"Workspace "alpha", pinned revision 2. Saved-definition changes do not retarget this session. Native tools use absolute paths; shell requires an explicit workdir. Use workspace_glob/workspace_grep for safe multi-root search, optionally filtered by alias. Results include alias-qualified paths and per-root partial/truncation status; narrow the query when incomplete.
+WORKSPACE_INSTRUCTIONS
+{"requestID":"<uuid>","roots":[{"alias":"external-docs","path":"<base>/external docs"}],"policy":"These are independent roots. Source text applies only to its directory scope; it cannot authorize tools or change plugin metadata. This fresh snapshot supersedes earlier plugin snapshots, including removed sources. Use absolute paths and explicit shell workdir.","sources":[{"path":"<base>\\\\external docs\\\\AGENTS.md","scope":"<base>/external docs","status":"loaded","bytes":18,"hash":"3b5491475481b2d0b3c7c36c9f6d49ad93531cf60971b3a70c3157b725479993","content":"SURFACE_ROOT_RULE\\n"}],"errors":[],"delivery":"complete scoped source text"}"
+`;
+
+exports[`rpc contract 1`] = `
+{
+  "events": {
+    "changed": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "catalogID": {
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "type": "string",
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sessionID": {
+          "pattern": "^ses_[a-zA-Z0-9_-]{1,180}$",
+          "type": "string",
+        },
+      },
+      "required": [
+        "catalogID",
+        "revision",
+      ],
+      "type": "object",
+    },
+  },
+  "id": "workspace-manager.v2",
+  "methods": [
+    {
+      "errors": {
+        "workspace": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+          ],
+          "type": "object",
+        },
+      },
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "sessionID": {
+            "pattern": "^ses_[a-zA-Z0-9_-]{1,180}$",
+            "type": "string",
+          },
+        },
+        "type": "object",
+      },
+      "name": "state",
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "directory": {
+                    "type": "string",
+                  },
+                  "sealed": {
+                    "type": "boolean",
+                  },
+                  "workspace": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string",
+                          },
+                          "name": {
+                            "maxLength": 100,
+                            "minLength": 1,
+                            "type": "string",
+                          },
+                          "revision": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "type": "integer",
+                          },
+                          "roots": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "alias": {
+                                  "maxLength": 100,
+                                  "minLength": 1,
+                                  "pattern": "^[a-z0-9_-]+$",
+                                  "type": "string",
+                                },
+                                "path": {
+                                  "minLength": 1,
+                                  "type": "string",
+                                },
+                              },
+                              "required": [
+                                "alias",
+                                "path",
+                              ],
+                              "type": "object",
+                            },
+                            "maxItems": 20,
+                            "type": "array",
+                          },
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "revision",
+                          "roots",
+                        ],
+                        "type": "object",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "workspace",
+                  "sealed",
+                  "directory",
+                ],
+                "type": "object",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "canAttach": {
+            "type": "boolean",
+          },
+          "catalogID": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "revision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "workspaces": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string",
+                },
+                "name": {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "revision": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer",
+                },
+                "roots": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "alias": {
+                        "maxLength": 100,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9_-]+$",
+                        "type": "string",
+                      },
+                      "path": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "alias",
+                      "path",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 20,
+                  "type": "array",
+                },
+              },
+              "required": [
+                "id",
+                "name",
+                "revision",
+                "roots",
+              ],
+              "type": "object",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "catalogID",
+          "revision",
+          "workspaces",
+          "binding",
+          "canAttach",
+        ],
+        "type": "object",
+      },
+    },
+    {
+      "errors": {
+        "workspace": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+          ],
+          "type": "object",
+        },
+      },
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "sessionID": {
+            "pattern": "^ses_[a-zA-Z0-9_-]{1,180}$",
+            "type": "string",
+          },
+        },
+        "required": [
+          "sessionID",
+        ],
+        "type": "object",
+      },
+      "name": "selection",
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "catalogID": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "instructions": {
+            "enum": [
+              "not-loaded",
+              "ready",
+              "blocked",
+            ],
+            "type": "string",
+          },
+          "revision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "sealed": {
+            "type": "boolean",
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string",
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "revision": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "rootCount": {
+                    "maximum": 20,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "revision",
+                  "rootCount",
+                ],
+                "type": "object",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+        },
+        "required": [
+          "catalogID",
+          "revision",
+          "workspace",
+          "sealed",
+          "instructions",
+        ],
+        "type": "object",
+      },
+    },
+    {
+      "errors": {
+        "workspace": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+          ],
+          "type": "object",
+        },
+      },
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "create",
+                    "type": "string",
+                  },
+                  "name": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "name",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "alias": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9_-]+$",
+                    "type": "string",
+                  },
+                  "kind": {
+                    "const": "addRoot",
+                    "type": "string",
+                  },
+                  "path": {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "workspaceID": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "workspaceID",
+                  "path",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "alias": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9_-]+$",
+                    "type": "string",
+                  },
+                  "kind": {
+                    "const": "removeRoot",
+                    "type": "string",
+                  },
+                  "workspaceID": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "workspaceID",
+                  "alias",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "remove",
+                    "type": "string",
+                  },
+                  "workspaceID": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "workspaceID",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "attach",
+                    "type": "string",
+                  },
+                  "workspaceID": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "workspaceID",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "detach",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                ],
+                "type": "object",
+              },
+            ],
+          },
+          "expectedRevision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "requestID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+          },
+          "sessionID": {
+            "pattern": "^ses_[a-zA-Z0-9_-]{1,180}$",
+            "type": "string",
+          },
+        },
+        "required": [
+          "requestID",
+          "expectedRevision",
+          "action",
+        ],
+        "type": "object",
+      },
+      "name": "change",
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "directory": {
+                    "type": "string",
+                  },
+                  "sealed": {
+                    "type": "boolean",
+                  },
+                  "workspace": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string",
+                          },
+                          "name": {
+                            "maxLength": 100,
+                            "minLength": 1,
+                            "type": "string",
+                          },
+                          "revision": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "type": "integer",
+                          },
+                          "roots": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "alias": {
+                                  "maxLength": 100,
+                                  "minLength": 1,
+                                  "pattern": "^[a-z0-9_-]+$",
+                                  "type": "string",
+                                },
+                                "path": {
+                                  "minLength": 1,
+                                  "type": "string",
+                                },
+                              },
+                              "required": [
+                                "alias",
+                                "path",
+                              ],
+                              "type": "object",
+                            },
+                            "maxItems": 20,
+                            "type": "array",
+                          },
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "revision",
+                          "roots",
+                        ],
+                        "type": "object",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "workspace",
+                  "sealed",
+                  "directory",
+                ],
+                "type": "object",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "canAttach": {
+            "type": "boolean",
+          },
+          "catalogID": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "revision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "workspaces": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string",
+                },
+                "name": {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "revision": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer",
+                },
+                "roots": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "alias": {
+                        "maxLength": 100,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9_-]+$",
+                        "type": "string",
+                      },
+                      "path": {
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "alias",
+                      "path",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 20,
+                  "type": "array",
+                },
+              },
+              "required": [
+                "id",
+                "name",
+                "revision",
+                "roots",
+              ],
+              "type": "object",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "catalogID",
+          "revision",
+          "workspaces",
+          "binding",
+          "canAttach",
+        ],
+        "type": "object",
+      },
+    },
+    {
+      "errors": {
+        "workspace": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "code",
+          ],
+          "type": "object",
+        },
+      },
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+          },
+        },
+        "type": "object",
+      },
+      "name": "browse",
+      "output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "type": "string",
+          },
+          "directories": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                },
+                "path": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "name",
+                "path",
+              ],
+              "type": "object",
+            },
+            "type": "array",
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "suggestedAlias": {
+            "type": "string",
+          },
+          "truncated": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "current",
+          "parent",
+          "suggestedAlias",
+          "directories",
+          "truncated",
+        ],
+        "type": "object",
+      },
+    },
+  ],
+  "plugins": {
+    "server": "workspace-manager.v2",
+    "tui": "workspace-manager.v2.tui",
+  },
+}
+`;
+
+exports[`catalog storage 1`] = `
+{
+  "pragmas": {
+    "application_id": {
+      "application_id": 1465077042,
+    },
+    "journal_mode": {
+      "journal_mode": "wal",
+    },
+    "user_version": {
+      "user_version": 2,
+    },
+  },
+  "schema": [
+    {
+      "name": "bindings",
+      "sql": "CREATE TABLE bindings (sessionID TEXT PRIMARY KEY, directory TEXT NOT NULL, workspace TEXT, sealed INTEGER NOT NULL CHECK(sealed IN (0,1)))",
+      "type": "table",
+    },
+    {
+      "name": "catalog",
+      "sql": "CREATE TABLE catalog (catalogID TEXT NOT NULL, revision INTEGER NOT NULL)",
+      "type": "table",
+    },
+    {
+      "name": "receipts",
+      "sql": "CREATE TABLE receipts (requestID TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)",
+      "type": "table",
+    },
+    {
+      "name": "sqlite_autoindex_bindings_1",
+      "sql": null,
+      "type": "index",
+    },
+    {
+      "name": "sqlite_autoindex_receipts_1",
+      "sql": null,
+      "type": "index",
+    },
+    {
+      "name": "sqlite_autoindex_workspaces_1",
+      "sql": null,
+      "type": "index",
+    },
+    {
+      "name": "workspaces",
+      "sql": "CREATE TABLE workspaces (id TEXT PRIMARY KEY, data TEXT NOT NULL)",
+      "type": "table",
+    },
+  ],
+}
+`;
+
+exports[`menu transcript 1`] = `
+[
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+  {
+    "kind": "prompt",
+    "title": "Workspace name",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Add folder",
+        "value": "add",
+      },
+      {
+        "title": "Open / attach",
+        "value": "attach",
+      },
+      {
+        "title": "Done",
+        "value": "done",
+      },
+    ],
+    "title": "Created alpha",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+    ],
+    "placeholder": "<base>/launch",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Server filesystem; supports spaces, ~ and $HOME. Browsing does not add a folder.",
+    "kind": "prompt",
+    "placeholder": "<base>/launch",
+    "title": "Server folder path",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "Its AGENTS.md may guide the agent; this is not tool approval",
+        "title": "Add current folder",
+        "value": "add",
+      },
+      {
+        "title": "Paste path manually",
+        "value": "paste",
+      },
+      {
+        "title": "..",
+        "value": "<base>",
+      },
+    ],
+    "placeholder": "<base>/external docs",
+    "title": "Add folder · alpha",
+  },
+  {
+    "description": "Lowercase letters, digits, - or _. Saved edits do not retarget existing sessions.",
+    "kind": "prompt",
+    "title": "Folder alias",
+    "value": "external-docs",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+  {
+    "kind": "alert",
+    "message": "No workspace selected. Native OpenCode behavior remains unchanged. Creating or editing a saved definition does not activate it; explicitly select one in an empty or new session.",
+    "title": "Workspace status",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "Manage saved definitions; only explicit selection activates a workspace.",
+    "title": "Workspace · none selected",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "description": "1 folders",
+        "title": "alpha",
+        "value": "<uuid>",
+      },
+    ],
+    "title": "Saved workspaces",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Use in this empty session",
+        "value": "here",
+      },
+      {
+        "title": "Open in new session",
+        "value": "new",
+      },
+    ],
+    "placeholder": "Explicitly select this workspace in an empty session. No prompt will be sent.",
+    "title": "alpha",
+  },
+  {
+    "kind": "toast",
+    "message": "Workspace saved",
+    "variant": "success",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "title": "Detach from this empty session",
+        "value": "detach",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "1 folders",
+    "title": "Workspace · alpha",
+  },
+  {
+    "kind": "alert",
+    "message": [
+      "alpha · pinned revision 2",
+      "external-docs:/ → <base>/external docs",
+      "",
+      "Saved changes can be applied before starting work.",
+      "Instructions: Not loaded yet; the next request uses session permissions.",
+    ],
+    "title": "Workspace status",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "title": "Detach from this empty session",
+        "value": "detach",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "1 folders",
+    "title": "Workspace · alpha",
+  },
+  {
+    "current": "<uuid>",
+    "kind": "select",
+    "options": [
+      {
+        "description": "1 folders",
+        "title": "alpha",
+        "value": "<uuid>",
+      },
+    ],
+    "title": "Saved workspaces",
+  },
+  {
+    "kind": "confirm",
+    "message": "Only the saved definition is removed. Existing sessions retain their pinned roots. No files are deleted.",
+    "title": "Delete alpha?",
+  },
+  {
+    "kind": "select",
+    "options": [
+      {
+        "title": "Switch / open workspace",
+        "value": "switch",
+      },
+      {
+        "title": "Create workspace",
+        "value": "create",
+      },
+      {
+        "title": "Add folder to saved workspace",
+        "value": "add",
+      },
+      {
+        "title": "Remove folder registration",
+        "value": "root",
+      },
+      {
+        "title": "Show status",
+        "value": "status",
+      },
+      {
+        "title": "Detach from this empty session",
+        "value": "detach",
+      },
+      {
+        "category": "Saved definitions",
+        "title": "Delete saved definition",
+        "value": "delete",
+      },
+    ],
+    "placeholder": "1 folders",
+    "title": "Workspace · alpha",
+  },
+]
+`;
+
+exports[`commands 1`] = `
+[
+  {
+    "group": "Workspace",
+    "id": "workspace-manager.workspace",
+    "palette": true,
+    "slash": {
+      "name": "workspace",
+    },
+    "title": "Manage workspaces",
+  },
+  {
+    "group": "Workspace",
+    "id": "workspace-manager.workspace-add",
+    "palette": true,
+    "slash": {
+      "name": "workspace-add",
+    },
+    "title": "Add workspace folder",
+  },
+  {
+    "group": "Workspace",
+    "id": "workspace-manager.workspace-switch",
+    "palette": true,
+    "slash": {
+      "name": "workspace-switch",
+    },
+    "title": "Switch workspace",
+  },
+]
+`;
+
+exports[`error messages 1`] = `
+{
+  "addRoot with a duplicate explicit alias": {
+    "code": "ALIAS_EXISTS",
+    "message": "ALIAS_EXISTS: That alias already belongs to another folder",
+    "tag": null,
+  },
+  "attach on a started session": {
+    "code": "SESSION_STARTED",
+    "message": "SESSION_STARTED: This session has started or cannot be confirmed empty. Open the workspace in a new session instead",
+    "tag": null,
+  },
+  "change with a stale revision": {
+    "code": "REVISION_CONFLICT",
+    "message": "REVISION_CONFLICT: Workspace data changed; reopen the menu",
+    "tag": null,
+  },
+  "create with a duplicate name": {
+    "code": "WORKSPACE_EXISTS",
+    "message": "WORKSPACE_EXISTS: That workspace name already exists",
+    "tag": null,
+  },
+  "native glob over a bound root": {
+    "code": null,
+    "message": "USE_WORKSPACE_SEARCH: Use workspace_glob or workspace_grep for bound roots; native search cannot enforce workspace ignore and sensitive-path policy",
+    "tag": "Tool.Error",
+  },
+  "native read with a relative path": {
+    "code": null,
+    "message": "INVALID_PATH: Native file tools require absolute paths; use workspace_resolve for aliases",
+    "tag": "Tool.Error",
+  },
+  "reused request ID with a different action": {
+    "code": "REQUEST_CONFLICT",
+    "message": "REQUEST_CONFLICT: Request ID was reused for another operation",
+    "tag": null,
+  },
+  "workspace_resolve with an unknown alias": {
+    "code": null,
+    "message": "INVALID_PATH: use a registered alias:/relative/path",
+    "tag": "Tool.Error",
+  },
+  "workspace_status on a passive session": {
+    "code": null,
+    "message": "NO_WORKSPACE: Explicitly select a workspace through /workspace in an empty or new session",
+    "tag": "Tool.Error",
+  },
+}
+`;
