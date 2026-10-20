@@ -6,7 +6,7 @@ import { INDICATOR_TIMING } from "../shared/limits.ts"
 import { WorkspaceRPC } from "../shared/rpc-contract.ts"
 import type { Selection } from "../shared/schemas.ts"
 
-function label(name: string, columns: number, blocked = false) {
+export function label(name: string, columns: number, blocked = false) {
   const mark = blocked ? "!" : ""
   if (Bun.stringWidth(`[ws:${name}${mark}]`) <= columns) return `[ws:${name}${mark}]`
   let prefix = ""
