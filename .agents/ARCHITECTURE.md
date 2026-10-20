@@ -199,7 +199,9 @@ runtime instances.
   [surface.test.ts](../tests/surface.test.ts) compares the observable surface
   (tool schemas, system text, SQLite DDL, dialogs) with a golden snapshot in
   [tests/__snapshots__](../tests/__snapshots__); a snapshot diff is a behavior
-  change, so fix the code instead of updating the snapshot.
+  change, so fix the code instead of updating the snapshot. The snapshot is
+  recorded on Windows; on other OSes the path separators in a few
+  instruction-source keys differ, so compare it on Windows only.
   [readme.test.ts](../tests/readme.test.ts) checks the README's install snippets.
 - [tests/helpers](../tests/helpers) is shared test support. In particular
   [workspace-server.ts](../tests/helpers/workspace-server.ts) hosts the production

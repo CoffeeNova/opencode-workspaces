@@ -1,5 +1,7 @@
 // Golden snapshot of everything a user, model or host can observe. A snapshot
 // diff here is a behavior change: fix the code, never update the snapshot.
+// The snapshot is recorded on Windows: on other OSes the path separators in a
+// few instruction-source keys differ, so compare it on Windows only.
 import { Database } from "bun:sqlite"
 import { afterEach, expect, spyOn, test } from "bun:test"
 import type { Plugin } from "@opencode/plugin"
