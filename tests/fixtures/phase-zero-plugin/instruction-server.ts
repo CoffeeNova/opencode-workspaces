@@ -40,7 +40,11 @@ export async function registerInstructionProbe(ctx: Context, fixture: string, re
     event.system.push({ type: "text", text: instructionBlock(snapshot) })
     // Fingerprints/status only; never instruction bodies in this diagnostic.
     await record("instructions.capture", { sessionID: event.sessionID, requestID: snapshot.requestID, errors: snapshot.errors,
-      sources: snapshot.sources.map(({ content: _content, ...source }) => source) })
+      sources: snapshot.sources.map((source) => {
+        if (source.status !== "loaded") return source
+        const { content: _content, ...fingerprint } = source
+        return fingerprint
+      }) })
   })
   await ctx.session.hook("compaction", (event) => { deliveries.get(event.sessionID)?.invalidate() })
   await ctx.tool.hook("execute.before", async (event) => {

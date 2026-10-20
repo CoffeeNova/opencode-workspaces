@@ -3,7 +3,8 @@ import * as fs from "node:fs/promises"
 import path from "node:path"
 import { Worker } from "node:worker_threads"
 import ignore, { type Ignore } from "ignore"
-import { WorkspaceError } from "../domain.ts"
+import { z } from "zod"
+import { errorCode, WorkspaceError } from "../domain.ts"
 import { absolute, assertNotDenied, canonicalDirectory, checkedTarget, inside, pathKey, slash } from "./paths.ts"
 
 export const READ_LIMIT = 200 * 1024
@@ -92,8 +93,8 @@ export async function* walk(roots: readonly SearchRoot[], signal: AbortSignal, o
       if (pathKey(real) !== pathKey(current.directory) || !inside(root.path, real)) throw new WorkspaceError("PATH_CHANGED", "A directory changed during the scan; retry the operation")
       const layers = [...current.layers]
       const ignoreFile = path.join(current.directory, ".gitignore")
-      const info = await fs.lstat(ignoreFile).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== "ENOENT") throw error
+      const info = await fs.lstat(ignoreFile).catch((error: unknown) => {
+        if (errorCode(error) !== "ENOENT") throw error
         return undefined
       })
       if (info?.isFile()) {
@@ -132,7 +133,7 @@ export async function* walk(roots: readonly SearchRoot[], signal: AbortSignal, o
             seen.add(pathKey(canonical))
             yield { root, absolute: canonical, relative, file: `${root.alias}:/${relative}`, mtime: info.mtimeMs, size: info.size }
           } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+            if (errorCode(error) !== "ENOENT") throw error
           }
         }
       }
@@ -156,7 +157,9 @@ const REGEX_WORKER = String.raw`
     parentPort.postMessage(hits)
   })
 `
-type RegexHit = { line: number; text: string; clipped: boolean }
+// Worker messages arrive untyped; validate the reply before trusting its shape.
+const RegexHits = z.array(z.object({ line: z.number().int().positive(), text: z.string(), clipped: z.boolean() }))
+type RegexHit = z.infer<typeof RegexHits>[number]
 
 export class RegexMatcher {
   private readonly worker: Worker
@@ -179,7 +182,12 @@ export class RegexMatcher {
         signal.removeEventListener("abort", onAbort)
       }
       const finish = (error: unknown) => { cleanup(); reject(error) }
-      const onMessage = (hits: RegexHit[]) => { cleanup(); resolve(hits) }
+      const onMessage = (message: unknown) => {
+        cleanup()
+        const hits = RegexHits.safeParse(message)
+        if (hits.success) resolve(hits.data)
+        else reject(new Error("Regex worker returned an invalid reply"))
+      }
       const onError = (error: Error) => finish(error)
       const onAbort = () => finish(signal.reason ?? new DOMException("Aborted", "AbortError"))
       this.worker.once("message", onMessage)
@@ -194,18 +202,26 @@ export class RegexMatcher {
   }
 }
 
-export type SearchInput = { kind: "glob" | "grep"; pattern: string; alias?: string | undefined; include?: string | undefined; exclude?: string[] | undefined }
+type SearchFilters = { pattern: string; alias?: string | undefined; exclude?: string[] | undefined }
+export type GlobSearchInput = SearchFilters & { kind: "glob" }
+export type GrepSearchInput = SearchFilters & { kind: "grep"; include?: string | undefined }
+export type SearchInput = GlobSearchInput | GrepSearchInput
 export type SearchAccess = { signal: AbortSignal; assert: (action: "external_directory" | "read" | "glob" | "grep", resource: string) => Promise<void> }
 type RootResult = { alias: string; status: "complete" | "truncated" | "unavailable"; code?: string }
 type Match = { file: string; line: number; text: string }
-type SearchResult = {
-  files?: string[]; matches?: Match[]; engine?: string
+type SearchSummary = {
   roots: RootResult[]; truncated: boolean; partial: boolean
   limits: { results: number; entriesPerRoot: number; grepBytesPerRoot: number }
 }
+export type GlobSearchResult = { files: string[] } & SearchSummary
+export type GrepSearchResult = { matches: Match[]; engine: "fs+regex" } & SearchSummary
+export type SearchResult = GlobSearchResult | GrepSearchResult
 const SCAN_LIMIT = 10_000
 const GREP_BYTES = 8 * 1024 * 1024
 
+export function searchWorkspace(roots: readonly SearchRoot[], input: GlobSearchInput, access: SearchAccess): Promise<GlobSearchResult>
+export function searchWorkspace(roots: readonly SearchRoot[], input: GrepSearchInput, access: SearchAccess): Promise<GrepSearchResult>
+export function searchWorkspace(roots: readonly SearchRoot[], input: SearchInput, access: SearchAccess): Promise<SearchResult>
 export async function searchWorkspace(roots: readonly SearchRoot[], input: SearchInput, access: SearchAccess): Promise<SearchResult> {
   access.signal.throwIfAborted()
   const scope = input.kind === "glob" ? globScope(input.pattern, input.alias) : { pattern: input.pattern, alias: input.alias }
@@ -261,7 +277,7 @@ export async function searchWorkspace(roots: readonly SearchRoot[], input: Searc
           } catch (error) {
             access.signal.throwIfAborted()
             if (permissionRejected) throw error
-            if ((error as NodeJS.ErrnoException).code === "ENOENT" || (error instanceof WorkspaceError && error.code === "BINARY_FILE")) continue
+            if (errorCode(error) === "ENOENT" || (error instanceof WorkspaceError && error.code === "BINARY_FILE")) continue
             throw error
           }
           matcher ??= new RegexMatcher(input.pattern)
@@ -276,8 +292,8 @@ export async function searchWorkspace(roots: readonly SearchRoot[], input: Searc
       } catch (error) {
         access.signal.throwIfAborted()
         if (permissionRejected) throw error
-        const code = (error as NodeJS.ErrnoException).code
-        if (error instanceof WorkspaceError && code === "SEARCH_LIMIT") { status.status = "truncated"; status.code = code }
+        const code = errorCode(error)
+        if (error instanceof WorkspaceError && error.code === "SEARCH_LIMIT") { status.status = "truncated"; status.code = error.code }
         else if (code && ["ENOENT", "ENOTDIR", "EACCES", "EPERM", "EBUSY", "ELOOP", "ROOT_CHANGED", "PATH_CHANGED", "IGNORE_TOO_LARGE", "BINARY_FILE", "DENIED_PATH", "NOT_DIRECTORY"].includes(code)) { status.status = "unavailable"; status.code = code }
         else throw error
       }
@@ -286,11 +302,11 @@ export async function searchWorkspace(roots: readonly SearchRoot[], input: Searc
     await matcher?.close()
   }
   access.signal.throwIfAborted()
-  return {
-    ...(input.kind === "glob" ? { files } : { matches, engine: "fs+regex" }),
+  const summary: SearchSummary = {
     roots: statuses,
     truncated: statuses.some((root) => root.status === "truncated"),
     partial: statuses.some((root) => root.status !== "complete"),
     limits: { results: limit, entriesPerRoot: SCAN_LIMIT, grepBytesPerRoot: GREP_BYTES },
   }
+  return input.kind === "glob" ? { files, ...summary } : { matches, engine: "fs+regex", ...summary }
 }

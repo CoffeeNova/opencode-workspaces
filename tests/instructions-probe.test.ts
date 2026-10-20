@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { instructionBlock, instructionDelivery, patchTargets } from "./fixtures/phase-zero-plugin/instructions.ts"
+import { instructionBlock, instructionDelivery, patchTargets, sourceContent } from "./fixtures/phase-zero-plugin/instructions.ts"
 
 const fixtures: string[] = []
 afterEach(async () => { for (const directory of fixtures.splice(0)) await fs.rm(directory, { recursive: true, force: true }) })
@@ -30,7 +30,7 @@ test("fresh context contains both roots, not unregistered parents or undiscovere
   const delivery = instructionDelivery(f.roots, async (source) => { sources.push(source) })
   const snapshot = await delivery.capture()
   expect(snapshot.errors).toEqual([])
-  expect(snapshot.sources.map((source) => source.content)).toEqual(["a root rules", "b root rules"])
+  expect(snapshot.sources.map(sourceContent)).toEqual(["a root rules", "b root rules"])
   expect(sources).toEqual(f.roots.map((root) => path.join(root.path, "AGENTS.md")))
   expect(instructionBlock(snapshot)).not.toContain("UNREGISTERED_PARENT")
   await delivery.preflight("message", [path.join(f.a, "new.txt")])
@@ -44,7 +44,7 @@ test("first-touch mutation is blocked and discovers sources only for a later gen
   await expect(delivery.preflight("first", [f.nested])).rejects.toThrow("INSTRUCTIONS_REQUIRED")
   const next = await delivery.capture()
   expect(next.requestID).not.toBe(first.requestID)
-  expect(next.sources.some((item) => item.content === "a nested rules")).toBe(true)
+  expect(next.sources.some((item) => sourceContent(item) === "a nested rules")).toBe(true)
   expect(await delivery.preflight("next", [f.nested])).toBe(next.requestID)
 })
 
@@ -89,9 +89,9 @@ test("overlapping roots preserve registered ancestor rules and deduplicate neste
   const delivery = instructionDelivery(f.roots, async () => {})
   await delivery.discover([f.nested])
   const snapshot = await delivery.capture()
-  expect(snapshot.sources.filter((item) => item.content === "a nested rules")).toHaveLength(1)
-  expect(snapshot.sources.filter((item) => item.content === "a root rules")).toHaveLength(1)
-  expect(snapshot.sources.some((item) => item.content === "b nested rules")).toBe(false)
+  expect(snapshot.sources.filter((item) => sourceContent(item) === "a nested rules")).toHaveLength(1)
+  expect(snapshot.sources.filter((item) => sourceContent(item) === "a root rules")).toHaveLength(1)
+  expect(snapshot.sources.some((item) => sourceContent(item) === "b nested rules")).toBe(false)
 })
 
 test("sessions have independent scope preparation and invalidation removes delivery evidence", async () => {
@@ -144,7 +144,7 @@ test("invalid UTF-8, binary and nonregular instructions remain visible errors", 
   await fs.unlink(source)
   await fs.mkdir(source)
   const snapshot = await instructionDelivery(f.roots, async () => {}).capture()
-  expect(snapshot.sources.find((item) => item.path === source)?.error).toContain("regular file")
+  expect(snapshot.sources.find((item) => item.path === source)).toMatchObject({ status: "error", error: expect.stringContaining("regular file") })
 })
 
 test("permission rejection propagates unchanged and clears an older captured snapshot", async () => {

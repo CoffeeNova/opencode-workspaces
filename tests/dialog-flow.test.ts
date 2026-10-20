@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import type { Dialog, DialogSelectOptions } from "@opencode/plugin/tui/context"
 import { checkDialogFlow } from "./fixtures/phase-zero-plugin/dialog-flow.ts"
+import type { Fake } from "./helpers/fake.ts"
 
 function harness() {
   const selections: { options: DialogSelectOptions<string>; result: ReturnType<typeof Promise.withResolvers<string | undefined>> }[] = []
@@ -21,7 +22,7 @@ function harness() {
       return result.promise
     },
     alert: async (value: unknown) => { alerts.push(value) },
-  } as unknown as Dialog
+  } satisfies Fake<Dialog> as unknown as Dialog
   return { selections, prompts, alerts, run: () => checkDialogFlow(dialog, () => current), dispose: () => { current = false } }
 }
 

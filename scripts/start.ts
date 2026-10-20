@@ -3,6 +3,8 @@ import { homedir } from "node:os"
 import path from "node:path"
 import { OpenCode } from "@opencode/client"
 import { Service } from "@opencode/client/service"
+import { z } from "zod"
+import { errorCode } from "../src/domain.ts"
 
 const root = await fs.realpath(path.resolve(import.meta.dir, ".."))
 const registeredPackage = path.join(root, "dist").replaceAll("\\", "/")
@@ -24,10 +26,10 @@ try {
     await config.sync()
   } finally { await config.close() }
 } catch (error) {
-  if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
-  const config = await Bun.file(configPath).json()
+  if (errorCode(error) !== "EEXIST") throw error
+  const config = z.object({ plugins: z.array(z.unknown()) }).safeParse(await Bun.file(configPath).json())
   const configured = (plugin: unknown) => typeof plugin === "string" ? plugin : typeof plugin === "object" && plugin !== null && "package" in plugin ? plugin.package : undefined
-  if (!Array.isArray(config.plugins) || !config.plugins.some((plugin: unknown) => configured(plugin) === registeredPackage)) {
+  if (!config.success || !config.data.plugins.some((plugin) => configured(plugin) === registeredPackage)) {
     throw new Error(`Existing launcher configuration was not overwritten: ${configPath}. Set OPENCODE_WORKSPACE_LAUNCHER to a different empty folder or configure this package explicitly.`)
   }
 }

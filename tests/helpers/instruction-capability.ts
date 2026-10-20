@@ -3,13 +3,13 @@ import * as fs from "node:fs/promises"
 import path from "node:path"
 import type { OpenCode } from "@opencode/client"
 import { InstructionProbe } from "../fixtures/phase-zero-plugin/instruction-rpc.ts"
-import type { InstructionSnapshot } from "../fixtures/phase-zero-plugin/instructions.ts"
+import { sourceContent, type DeliveredSnapshot } from "../fixtures/phase-zero-plugin/instructions.ts"
 import { slash, type createCapabilityFixture } from "./capability-fixture.ts"
 import { heldReply, type ScriptedCall, type ScriptedReply } from "./lifecycle-capability.ts"
 
 type Client = ReturnType<typeof OpenCode.make>
 type Fixture = Awaited<ReturnType<typeof createCapabilityFixture>>
-function capturedSnapshot(request: unknown): InstructionSnapshot {
+function capturedSnapshot(request: unknown): DeliveredSnapshot {
   const strings = (value: unknown): string[] => typeof value === "string" ? [value]
     : Array.isArray(value) ? value.flatMap(strings)
     : value !== null && typeof value === "object" ? Object.values(value).flatMap(strings) : []
@@ -18,7 +18,7 @@ function capturedSnapshot(request: unknown): InstructionSnapshot {
   const blocks = strings(messages).filter((text) => text.includes(marker))
   assert.equal(blocks.length, 1, "Exactly one fresh workspace instruction block must reach the provider")
   const json = blocks[0]!.slice(blocks[0]!.indexOf(marker) + marker.length).split("\n")[0]!
-  return JSON.parse(json) as InstructionSnapshot
+  return JSON.parse(json) as DeliveredSnapshot
 }
 
 export async function checkInstructionCapability(client: Client, fixture: Fixture, requests: unknown[], enqueue: (reply: ScriptedReply) => void) {
@@ -70,8 +70,8 @@ export async function checkInstructionCapability(client: Client, fixture: Fixtur
     const initial = result.snapshots[0]!
     assert.deepEqual(initial.roots.map((root) => root.alias), ["a", "b"])
     assert.equal(initial.sources.length, 2)
-    assert.equal(initial.sources.find((source) => source.scope === fixture.rootA)?.content, originals[0])
-    assert.equal(initial.sources.find((source) => source.scope === fixture.rootB)?.content, originals[2])
+    assert.equal(sourceContent(initial.sources.find((source) => source.scope === fixture.rootA)), originals[0])
+    assert.equal(sourceContent(initial.sources.find((source) => source.scope === fixture.rootB)), originals[2])
     assert.match(JSON.stringify(requests[start]), /LAUNCH_RULE_MARKER/, "Native launch instructions must be preserved")
     const onlyA = await run(await session("a"), [])
     assert.equal(onlyA.snapshots[0]!.sources.length, 1)
@@ -85,7 +85,7 @@ export async function checkInstructionCapability(client: Client, fixture: Fixtur
     rejected(parallelResult.parts.filter((part) => part.name === "write"), "INSTRUCTIONS_REQUIRED")
     assert.equal(await fs.exists(parallelFile), false)
     assert.equal(parallelResult.snapshots[0]!.sources.some((source) => source.path === nestedRule), false)
-    assert.equal(parallelResult.snapshots[1]!.sources.find((source) => source.path === nestedRule)?.content, originals[1])
+    assert.equal(sourceContent(parallelResult.snapshots[1]!.sources.find((source) => source.path === nestedRule)), originals[1])
     completed((await run(parallel, [[write(parallelFile)]])).parts)
     assert.equal(await fs.readFile(parallelFile, "utf8"), "instruction-aware write\n")
     completed((await run(parallel, [[{ name: "edit", input: { path: parallelFile, oldString: "instruction-aware write", newString: "instruction-aware edit" } }]])).parts)
@@ -158,7 +158,7 @@ export async function checkInstructionCapability(client: Client, fixture: Fixtur
       const refreshed = capturedSnapshot(requests[requestStart + 1])
       const source = refreshed.sources.find((source) => source.path === nestedRule)
       assert.equal(source?.status, content ? "loaded" : "missing")
-      assert.equal(source?.content, content)
+      assert.equal(sourceContent(source), content)
       completed((await run(parallel, [[write(target)]])).parts)
     }
     check("changed/deleted rules reject an already generated write; fresh requests explicitly supersede old text")
@@ -200,7 +200,7 @@ export async function checkInstructionCapability(client: Client, fixture: Fixtur
     rejected(aggregate.parts.filter((part) => part.name === "write"), "INSTRUCTIONS_UNAVAILABLE")
     assert.equal(await fs.exists(aggregateTarget), false)
     assert.ok(aggregate.snapshots[1]!.errors.some((error) => error.includes("Aggregate instructions")))
-    assert.ok(aggregate.snapshots[1]!.sources.every((source) => source.content === undefined))
+    assert.ok(aggregate.snapshots[1]!.sources.every((source) => sourceContent(source) === undefined))
     check("32 KiB file/64 KiB aggregate overflow is visible and blocks writes without partial-rule delivery")
     for (const [index, source] of [rootRule, nestedRule, bRule].entries()) await fs.writeFile(source, originals[index]!)
 
@@ -209,7 +209,7 @@ export async function checkInstructionCapability(client: Client, fixture: Fixtur
     rejected(small.parts, "INSTRUCTIONS_UNAVAILABLE")
     assert.equal(await fs.exists(smallTarget), false)
     assert.ok(small.snapshots[0]!.errors.some((error) => error.includes("budget policy is unverified")))
-    assert.ok(small.snapshots[0]!.sources.every((source) => source.content === undefined))
+    assert.ok(small.snapshots[0]!.sources.every((source) => sourceContent(source) === undefined))
     check("declared 8k context fails closed; byte caps are not claimed to be token-budget validation")
 
     const observations = (await fs.readFile(path.join(fixture.base, "observations.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { kind: string; data: { id?: string; sessionID?: string; requestID?: string; sources?: Record<string, unknown>[] } })

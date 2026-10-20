@@ -48,13 +48,13 @@ export function registerWorkspaceIndicator(context: Context) {
         let queued = false
         let catalogID: string | undefined
         let retryMs = 2000
-        async function refresh() {
+        const refresh = async () => {
           if (lifetime.signal.aborted) return
           if (busy) { queued = true; return }
           clearTimeout(timer)
           busy = true
           try {
-            const result = await rpc.selection({ sessionID: sessionID! }, { location: location!, signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(5000)]) })
+            const result = await rpc.selection({ sessionID }, { location, signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(5000)]) })
             if (lifetime.signal.aborted) return
             catalogID = result.catalogID ?? undefined
             active = result.workspace !== null

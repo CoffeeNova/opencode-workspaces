@@ -1,10 +1,15 @@
 import { strict as assert } from "node:assert"
 import * as fs from "node:fs/promises"
 import path from "node:path"
+import { z } from "zod"
 import { WorkspaceRPC } from "../src/rpc.ts"
 import { createCapabilityFixture, openCodeExecutable, slash, startCapabilityServer } from "../tests/helpers/capability-fixture.ts"
 import { openPrivateTui } from "../tests/helpers/private-tui.ts"
 import { scriptedProvider } from "../tests/helpers/scripted-provider.ts"
+
+const SearchRoots = { roots: z.array(z.object({ alias: z.string(), status: z.string() })), partial: z.boolean() }
+const GlobOutput = z.object({ files: z.array(z.string()), ...SearchRoots })
+const GrepOutput = z.object({ matches: z.array(z.object({ file: z.string(), line: z.number(), text: z.string() })), ...SearchRoots })
 
 // One end-to-end check of the actual package, after implementation. Reuses the
 // existing private transport/provider; there is no second workspace implementation.
@@ -24,8 +29,7 @@ try {
   const overlay = path.join(product, "direct-tools.js")
   await fs.writeFile(overlay, `import { Plugin } from "@opencode/plugin"\nexport default Plugin.define({id:"workspace-development.direct-tools",async setup(ctx){await ctx.tool.transform(editor=>{for(const name of ["read","edit","write","patch","shell","glob","grep"])editor.update(name,tool=>{tool.options={...tool.options,codemode:false}})})}})\n`)
   const configFile = path.join(fixture.launch, "opencode.json")
-  const config = await Bun.file(configFile).json()
-  config.plugins = [{ package: slash(product), options: { catalogPath: slash(path.join(fixture.base, "workspace-catalog.sqlite")) } }, slash(overlay)]
+  const config = { ...z.looseObject({}).parse(await Bun.file(configFile).json()), plugins: [{ package: slash(product), options: { catalogPath: slash(path.join(fixture.base, "workspace-catalog.sqlite")) } }, slash(overlay)] }
   await fs.writeFile(configFile, JSON.stringify(config, null, 2))
   host = await startCapabilityServer(executable, fixture)
   const location = { directory: slash(fixture.launch) }
@@ -162,26 +166,29 @@ try {
   const searched = (await host.client.session.context({ sessionID })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : [])
   const searchTools = searched.filter((tool) => tool.name === "workspace_glob" || tool.name === "workspace_grep")
   assert.equal(searchTools.length, 3)
-  const outputs = searchTools.map((tool) => {
+  const texts = searchTools.map((tool) => {
     assert.equal(tool.state.status, "completed", JSON.stringify(tool))
     if (tool.state.status !== "completed") throw new Error("Workspace search failed")
     const text = tool.state.content.filter((part) => part.type === "text").map((part) => part.text).join("\n")
     assert.doesNotMatch(text, /NEVER_PRINT_|workspace-search-ignored|\.env\.workspace-search/)
     return JSON.parse(text)
   })
-  assert.ok(outputs[0].files.includes(`${rootA.alias}:/workspace-search.txt`))
-  assert.ok(outputs[0].files.includes(`${rootB.alias}:/workspace-search.txt`))
-  assert.equal(outputs[1].roots.find((root: { alias: string }) => root.alias === rootA.alias).status, "truncated")
-  assert.ok(outputs[1].matches.some((match: { file: string }) => match.file === `${rootB.alias}:/workspace-search.txt`))
-  assert.equal(outputs[1].partial, true)
-  assert.deepEqual(outputs[2].matches, [{ file: `${rootB.alias}:/workspace-search.txt`, line: 1, text: "WORKSPACE_SEARCH_VISIBLE" }])
+  const globbed = GlobOutput.parse(texts[0])
+  const grepped = GrepOutput.parse(texts[1])
+  const aliased = GrepOutput.parse(texts[2])
+  assert.ok(globbed.files.includes(`${rootA.alias}:/workspace-search.txt`))
+  assert.ok(globbed.files.includes(`${rootB.alias}:/workspace-search.txt`))
+  assert.equal(grepped.roots.find((root) => root.alias === rootA.alias)?.status, "truncated")
+  assert.ok(grepped.matches.some((match) => match.file === `${rootB.alias}:/workspace-search.txt`))
+  assert.equal(grepped.partial, true)
+  assert.deepEqual(aliased.matches, [{ file: `${rootB.alias}:/workspace-search.txt`, line: 1, text: "WORKSPACE_SEARCH_VISIBLE" }])
   assert.ok(searched.some((tool) => tool.name === "grep" && tool.state.status === "error" && tool.state.error.message.includes("USE_WORKSPACE_SEARCH")))
   replies.push([{ name: "workspace_glob", input: { pattern: "**/workspace-search*.txt" } }], [])
   await host.client.session.prompt({ sessionID: betaSessionID, text: "Search only this session's empty workspace." })
   await host.client.session.wait({ sessionID: betaSessionID }, { signal: AbortSignal.timeout(30_000) })
   const isolated = (await host.client.session.context({ sessionID: betaSessionID })).flatMap((message) => message.type === "assistant" ? message.content.filter((part) => part.type === "tool") : []).find((tool) => tool.name === "workspace_glob")
   assert.equal(isolated?.state.status, "completed", JSON.stringify(isolated))
-  if (isolated?.state.status === "completed") assert.deepEqual(JSON.parse(isolated.state.content.filter((part) => part.type === "text").map((part) => part.text).join("\n")).files, [])
+  if (isolated?.state.status === "completed") assert.deepEqual(GlobOutput.parse(JSON.parse(isolated.state.content.filter((part) => part.type === "text").map((part) => part.text).join("\n"))).files, [])
   assert.equal(replies.length, 0)
   console.log("PASS actual search: pinned session roots, aliases, ignore/secrets, fair truncation, native guard and independent session isolation")
   const linkedRoot = path.join(fixture.base, "outside-root-alias")

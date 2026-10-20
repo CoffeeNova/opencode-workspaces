@@ -6,6 +6,7 @@ import { type Change } from "../src/domain.ts"
 import { WorkspaceRPC } from "../src/rpc.ts"
 import Tui from "../src/tui.ts"
 import { workspaceServer } from "./helpers/workspace-server.ts"
+import type { Fake } from "./helpers/fake.ts"
 
 type Options = { location: { directory: string }; signal: AbortSignal }
 type Answer = string | undefined | Promise<string | undefined> | ((options: DialogSelectOptions<string>) => string | undefined | Promise<string | undefined>)
@@ -81,7 +82,7 @@ async function fixture(initial: Route = { type: "session", sessionID: "ses_a" })
         alert: async (input: { title: string; message: string }) => { alerts.push(input) },
       },
     },
-  } as unknown as Context
+  } satisfies Fake<Context> as unknown as Context
   let initialized: Awaited<ReturnType<typeof Tui.setup>>
   try { initialized = await Tui.setup(context) }
   catch (error) { await server.dispose(); throw error }

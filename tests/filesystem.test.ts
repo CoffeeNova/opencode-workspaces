@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { canonicalTarget, checkedTarget, overlapsRoots } from "../src/infrastructure/paths.ts"
-import { searchWorkspace, walk, type SearchInput } from "../src/infrastructure/search.ts"
+import { searchWorkspace, walk, type GlobSearchInput, type GlobSearchResult, type GrepSearchInput, type GrepSearchResult, type SearchInput, type SearchResult } from "../src/infrastructure/search.ts"
 
 const unix = (value: string) => value.replaceAll("\\", "/").replace(/^[a-z]:/, (drive) => drive.toUpperCase())
 
@@ -88,7 +88,10 @@ describe("production native path policy", () => {
 describe("session workspace search service", () => {
   const inputRoots = () => [{ alias: "docs", path: unix(h.docs) }, { alias: "src", path: unix(h.src) }]
   const access = () => ({ signal: h.controller.signal, assert: async (_action: string, _resource: string) => {} })
-  const search = (input: SearchInput) => searchWorkspace(inputRoots(), input, access())
+  function search(input: GlobSearchInput): Promise<GlobSearchResult>
+  function search(input: GrepSearchInput): Promise<GrepSearchResult>
+  function search(input: SearchInput): Promise<SearchResult>
+  function search(input: SearchInput) { return searchWorkspace(inputRoots(), input, access()) }
 
   test("shares bounded quotas fairly, distinguishes duplicate names, and supports alias filters", async () => {
     await Promise.all(Array.from({ length: 105 }, (_, index) => h.write(h.docs, `many-${String(index).padStart(3, "0")}.txt`, "needle\n".repeat(2))))
@@ -101,7 +104,7 @@ describe("session workspace search service", () => {
     expect(glob.partial).toBe(true)
     const grep = await search({ kind: "grep", pattern: "needle" })
     expect(grep.matches).toHaveLength(51)
-    expect(grep.matches!.at(-1)).toEqual({ file: "src:/same.txt", line: 1, text: "needle src" })
+    expect(grep.matches.at(-1)).toEqual({ file: "src:/same.txt", line: 1, text: "needle src" })
     expect(grep.truncated).toBe(true)
     expect((await search({ kind: "glob", pattern: "src:/**/*.txt" })).files).toEqual(["src:/same.txt"])
     expect((await search({ kind: "grep", pattern: "needle", alias: "src" })).matches).toHaveLength(1)
@@ -153,7 +156,7 @@ describe("session workspace search service", () => {
     const abort = new Error("cancelled search")
     await expect(searchWorkspace(inputRoots(), { kind: "grep", pattern: "needle" }, { ...access(), assert: async (action) => { if (action === "read") h.controller.abort(abort) } })).rejects.toBe(abort)
     h.controller = new AbortController()
-    for (const input of [{ kind: "glob", pattern: "../**" }, { kind: "glob", pattern: "docs:/**/*", alias: "src" }, { kind: "grep", pattern: "[" }, { kind: "grep", pattern: "x", include: "../**" }, { kind: "glob", pattern: "**/*", alias: "unknown" }] as SearchInput[]) {
+    for (const input of [{ kind: "glob", pattern: "../**" }, { kind: "glob", pattern: "docs:/**/*", alias: "src" }, { kind: "grep", pattern: "[" }, { kind: "grep", pattern: "x", include: "../**" }, { kind: "glob", pattern: "**/*", alias: "unknown" }] satisfies SearchInput[]) {
       await expect(search(input)).rejects.toThrow()
     }
   })
@@ -166,7 +169,7 @@ describe("session workspace search service", () => {
     await h.write(h.src, "over.txt", "needle " + "x".repeat(3000))
     expect((await search({ kind: "grep", pattern: "needle", alias: "src" })).truncated).toBe(true)
     const clipped = await search({ kind: "grep", pattern: "needle", alias: "src", include: "over.txt" })
-    expect(clipped.matches![0]!.text).toEndWith("[line truncated]")
+    expect(clipped.matches[0]!.text).toEndWith("[line truncated]")
     const iterator = walk([inputRoots()[1]!], h.controller.signal, { maxEntries: 1 })
     await expect(iterator.next()).rejects.toThrow("SEARCH_LIMIT")
   })

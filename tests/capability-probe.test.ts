@@ -4,6 +4,7 @@ import type { KeymapLayer, Route } from "@opencode/plugin/tui/context"
 import Probe from "./fixtures/phase-zero-plugin/tui.ts"
 import { isolatedEnvironment } from "./helpers/capability-fixture.ts"
 import { TuiObservation } from "./fixtures/phase-zero-plugin/rpc.ts"
+import type { Fake } from "./helpers/fake.ts"
 
 async function harness(route: Route = { type: "home" }, cached = true) {
   const selected = Promise.withResolvers<string | undefined>()
@@ -44,7 +45,7 @@ async function harness(route: Route = { type: "home" }, cached = true) {
         clear: () => { cleared++ },
       },
     },
-  } as unknown as Context
+  } satisfies Fake<Context> as unknown as Context
   const cleanup = await Probe.setup(context)
   const command = layer?.commands?.[0]
   if (!command || typeof cleanup !== "function") throw new Error("Probe did not register a command/cleanup")
@@ -189,7 +190,7 @@ test("failed TUI setup releases its manually owned event listener", async () => 
       client: { rpc: () => ({ record: async () => { throw new Error("Fixture RPC unavailable") } }) },
       keymap: { layer: () => { if (stage === "layer") throw new Error("Fixture layer unavailable") }, commands: () => [] },
       data: { listen: () => () => { unsubscribed++ } },
-    } as unknown as Context
+    } satisfies Fake<Context> as unknown as Context
     await expect(Probe.setup(context)).rejects.toThrow("unavailable")
     expect(unsubscribed).toBe(1)
   }

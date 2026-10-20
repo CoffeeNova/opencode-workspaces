@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
-import { WorkspaceError } from "../domain.ts"
+import { errorCode, WorkspaceError } from "../domain.ts"
 
 export const slash = (value: string) => value.replaceAll("\\", "/")
 export const pathKey = (value: string) => process.platform === "win32" ? slash(value).replace(/\/$/, "").toLowerCase() : slash(value).replace(/\/$/, "")
@@ -40,14 +40,14 @@ export async function canonicalTarget(candidate: string) {
     try {
       return slash(path.join(await fs.realpath(ancestor), ...suffix))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+      if (errorCode(error) !== "ENOENT") throw error
       const next = path.dirname(ancestor)
       if (next === ancestor) throw error
       suffix.unshift(path.basename(ancestor)); ancestor = next
     }
   }
 }
-const unavailable = (error: unknown) => ["ENOENT", "ENOTDIR", "EACCES", "EPERM", "ELOOP", "EBUSY", "ENAMETOOLONG"].includes((error as NodeJS.ErrnoException).code ?? "")
+const unavailable = (error: unknown) => ["ENOENT", "ENOTDIR", "EACCES", "EPERM", "ELOOP", "EBUSY", "ENAMETOOLONG"].includes(errorCode(error) ?? "")
 export async function overlapsRoots(candidate: string, roots: readonly { path: string }[]) {
   const overlaps = (target: string) => roots.some((root) => inside(root.path, target) || inside(target, root.path))
   if (overlaps(candidate)) return true

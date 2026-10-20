@@ -12,6 +12,7 @@ import { Selection, State, type Action, type Change } from "../../src/domain.ts"
 import { Catalog } from "../../src/infrastructure/catalog.ts"
 import { slash } from "../../src/infrastructure/paths.ts"
 import { WorkspaceRPC } from "../../src/rpc.ts"
+import type { Fake } from "./fake.ts"
 
 type Hook<Event> = (event: Event) => void | Promise<void>
 type Before = Pick<ToolContext, "sessionID" | "agent" | "messageID" | "id"> & { tool: string; input: unknown }
@@ -72,7 +73,7 @@ export async function workspaceServer(configured = true) {
       hook: async (name: string, hook: Hook<PermissionEvaluation>) => { permissionHooks.set(name, hook); return registration() },
     },
     model: { list: async () => { modelCalls++; return { data: [{ providerID: "fixture", id: "large", limit: { context: contextLimit } }] } } },
-  } as unknown as Plugin.Context
+  } satisfies Fake<Plugin.Context> as unknown as Plugin.Context
   function registered() {
     if (!handlers) throw new Error("Workspace RPC was not registered")
     return handlers

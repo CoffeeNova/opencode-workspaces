@@ -3,21 +3,35 @@ import { Error as ToolError } from "@opencode/plugin/promise/tool"
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
-import { Alias, WorkspaceError, type Binding, type Selection, type Workspace } from "./domain.ts"
+import { Alias, errorCode, isUnavailableCode, WorkspaceError, type Binding, type Selection, type Workspace } from "./domain.ts"
 import { Catalog } from "./infrastructure/catalog.ts"
 import { absolute, browse, canonicalDirectory, checkedTarget, expanded, inside, overlapsRoots, pathKey, slash } from "./infrastructure/paths.ts"
-import { searchWorkspace } from "./infrastructure/search.ts"
+import { searchWorkspace, type SearchInput } from "./infrastructure/search.ts"
 import { instructionBlock, instructionDelivery, InstructionError, patchTargets } from "./instructions/delivery.ts"
 import { WorkspaceRPC } from "./rpc.ts"
 
 function failure(error: unknown): WorkspaceError {
   if (error instanceof WorkspaceError) return error
-  const code = (error as NodeJS.ErrnoException)?.code
-  if (typeof code === "string" && (["ENOENT", "EACCES", "EPERM", "ENOTDIR", "EBUSY", "EIO", "EROFS"].includes(code) || code.startsWith("SQLITE_"))) return new WorkspaceError(code, "Workspace path or catalog is unavailable; reopen /workspace after correcting it")
+  const code = errorCode(error)
+  if (isUnavailableCode(code)) return new WorkspaceError(code, "Workspace path or catalog is unavailable; reopen /workspace after correcting it")
   throw error // Preserve native permission rejection and cancellation.
 }
 
 const helperTools = ["workspace_glob", "workspace_grep", "workspace_status", "workspace_resolve"] as const
+// Native tool input is unknown; only these string fields can name a preflight target.
+const NativeTarget = z.object({ path: z.string().optional().catch(undefined), patchText: z.string().optional().catch(undefined), workdir: z.string().optional().catch(undefined) })
+const SearchFields = { pattern: z.string().min(1).max(4096), alias: Alias.optional() }
+const SearchExclude = z.array(z.string().min(1).max(4096)).max(32).optional()
+const GlobSearch = z.object({ ...SearchFields, exclude: SearchExclude }).strict()
+const GrepSearch = z.object({ ...SearchFields, include: z.string().min(1).max(4096).optional(), exclude: SearchExclude }).strict()
+function searchInput(kind: SearchInput["kind"], raw: unknown): SearchInput | undefined {
+  if (kind === "glob") {
+    const parsed = GlobSearch.safeParse(raw)
+    return parsed.success ? { kind, ...parsed.data } : undefined
+  }
+  const parsed = GrepSearch.safeParse(raw)
+  return parsed.success ? { kind, ...parsed.data } : undefined
+}
 type Inactive = { mode: "passive" } | { mode: "unavailable"; error: WorkspaceError }
 type Resolution = Inactive | { mode: "active"; binding: Binding & { workspace: Workspace } }
 
@@ -101,7 +115,7 @@ export default Plugin.define({
       } catch (error) {
         const problem = failure(error)
         if (cached?.mode !== "unavailable" || cached.error.message !== problem.message) console.warn(`[workspace-manager] Binding resolution unavailable for ${sessionID}: ${problem.message}. Known active sessions fail closed; an undiscovered session retains native behavior, not a confirmed passive binding. Reopen /workspace after restoring catalog access.`)
-        const result = { mode: "unavailable" as const, error: problem }
+        const result: Inactive = { mode: "unavailable", error: problem }
         cacheInactive(sessionID, result)
         return result
       }
@@ -253,15 +267,16 @@ export default Plugin.define({
           }
           const bound = resolved.binding.workspace
           await session(event.sessionID)
-          const input = event.input as { path?: unknown; patchText?: unknown; workdir?: unknown }
+          const parsed = NativeTarget.safeParse(event.input)
+          const input: z.infer<typeof NativeTarget> = parsed.success ? parsed.data : {}
           if (event.tool === "glob" || event.tool === "grep") {
-            const searchDirectory = typeof input.path === "string" ? absolute(input.path, directory) : directory
+            const searchDirectory = input.path !== undefined ? absolute(input.path, directory) : directory
             if (await overlapsRoots(searchDirectory, bound.roots)) throw new WorkspaceError("USE_WORKSPACE_SEARCH", "Use workspace_glob or workspace_grep for bound roots; native search cannot enforce workspace ignore and sensitive-path policy")
             return
           }
-          const targets = event.tool === "patch" && typeof input.patchText === "string" ? patchTargets(input.patchText)
-            : event.tool === "shell" && typeof input.workdir === "string" ? [input.workdir]
-            : event.tool !== "shell" && typeof input.path === "string" ? [input.path] : []
+          const targets = event.tool === "patch" && input.patchText !== undefined ? patchTargets(input.patchText)
+            : event.tool === "shell" && input.workdir !== undefined ? [input.workdir]
+            : event.tool !== "shell" && input.path !== undefined ? [input.path] : []
           if (!targets.length) throw new WorkspaceError("INVALID_PATH", "An explicit native path or shell workdir is required")
           const covered: string[] = []
           for (const target of targets) {
@@ -284,23 +299,18 @@ export default Plugin.define({
       })
       await ctx.tool.transform((editor) => {
         for (const kind of ["glob", "grep"] as const) {
-          const Search = z.object({
-            pattern: z.string().min(1).max(4096), alias: Alias.optional(),
-            ...(kind === "grep" ? { include: z.string().min(1).max(4096).optional() } : {}),
-            exclude: z.array(z.string().min(1).max(4096)).max(32).optional(),
-          }).strict()
           editor.add({
             name: `workspace_${kind}`,
             description: `Search this session's pinned workspace ${kind === "glob" ? "file paths by relative glob (also alias:/glob)" : "UTF-8 content by JavaScript regex, optionally filtered by include glob"}. Defaults to all roots; optional alias narrows to one. Honors nested .gitignore and exclude globs; skips sensitive paths and links. Deterministic per-root quotas share ${kind === "glob" ? 200 : 100} results. Reports partial/truncated/unavailable roots. Grep skips binary and >200 KiB files; scan/byte budgets and cancellation apply.`,
-            input: z.toJSONSchema(Search), options: { codemode: false },
+            input: z.toJSONSchema(kind === "glob" ? GlobSearch : GrepSearch), options: { codemode: false },
             execute: async (raw, context) => {
               context.signal.throwIfAborted()
               const { workspace: binding } = await workspaceBinding(context.sessionID)
-              const parsed = Search.safeParse(raw)
-              if (!parsed.success) throw new ToolError({ message: "INVALID_PATTERN: invalid workspace search arguments" })
+              const input = searchInput(kind, raw)
+              if (!input) throw new ToolError({ message: "INVALID_PATTERN: invalid workspace search arguments" })
               const source = { type: "tool" as const, messageID: context.messageID, id: context.id }
               try {
-                const result = await searchWorkspace(binding.roots, { kind, pattern: parsed.data.pattern, alias: parsed.data.alias, exclude: parsed.data.exclude, include: typeof parsed.data.include === "string" ? parsed.data.include : undefined }, {
+                const result = await searchWorkspace(binding.roots, input, {
                   signal: context.signal,
                   assert: (action, resource) => ctx.permission.assert({ sessionID: context.sessionID, agent: context.agent, source, action, resources: [resource], save: [] }),
                 })

@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto"
 import * as fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
-import { Binding, Workspace, WorkspaceError, type Change } from "../domain.ts"
+import { Binding, errorCode, unreachable, Workspace, WorkspaceError, WorkspaceID, type Change } from "../domain.ts"
 import { absolute, assertNotDenied, expanded, pathKey, suggestedAlias } from "./paths.ts"
 
 const APPLICATION_ID = 0x57534d32
@@ -20,7 +20,7 @@ export class Catalog {
     if (path.extname(raw).toLowerCase() !== ".sqlite") throw new WorkspaceError("INVALID_REGISTRY", "Workspace catalogs require a .sqlite path")
     const file = absolute(raw, base)
     if (create) await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
-    const info = await fs.lstat(file).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; return undefined })
+    const info = await fs.lstat(file).catch((error: unknown) => { if (errorCode(error) !== "ENOENT") throw error; return undefined })
     if (!info && !create) return
     if (info && (!info.isFile() || info.isSymbolicLink())) throw new WorkspaceError("INVALID_REGISTRY", "Catalog must be a regular unlinked file")
     return { file: path.join(await fs.realpath(path.dirname(file)), path.basename(file)), exists: !!info }
@@ -88,6 +88,15 @@ export class Catalog {
       return workspace
     } catch { throw new WorkspaceError("INVALID_REGISTRY", "Invalid stored workspace; nothing was overwritten") }
   }
+  private savedWorkspace(id: WorkspaceID): Workspace {
+    const row = this.db.query<{ data: string }, [string]>("SELECT data FROM workspaces WHERE id=?").get(id)
+    if (!row) throw new WorkspaceError("UNKNOWN_WORKSPACE", "Saved workspace no longer exists")
+    return this.decode(row.data, id)
+  }
+  private saveRevision(updated: Workspace) {
+    const next = Workspace.parse({ ...updated, revision: updated.revision + 1 })
+    this.db.query("UPDATE workspaces SET data=? WHERE id=?").run(JSON.stringify(next), next.id)
+  }
   private row(sessionID: string) { return this.db.query<Row, [string]>("SELECT workspace, sealed, directory FROM bindings WHERE sessionID=?").get(sessionID) }
   private binding(row: Row | null): Binding | null {
     if (row && ((row.sealed !== 0 && row.sealed !== 1) || typeof row.directory !== "string" || !path.isAbsolute(row.directory))) throw new WorkspaceError("INVALID_REGISTRY", "Invalid session binding")
@@ -121,43 +130,49 @@ export class Catalog {
       }
       if (input.expectedRevision !== this.meta().revision) throw new WorkspaceError("REVISION_CONFLICT", "Workspace data changed; reopen the menu")
       const action = input.action
-      const current = "workspaceID" in action ? this.db.query<{ data: string }, [string]>("SELECT data FROM workspaces WHERE id=?").get(action.workspaceID) : undefined
-      const workspace = current ? this.decode(current.data, "workspaceID" in action ? action.workspaceID : undefined) : undefined
-      if ("workspaceID" in action && !workspace) throw new WorkspaceError("UNKNOWN_WORKSPACE", "Saved workspace no longer exists")
-      if (action.kind === "attach" || action.kind === "detach") {
-        if (!input.sessionID) throw new WorkspaceError("SESSION_REQUIRED", "Select an empty session first")
-        const old = this.row(input.sessionID)
-        if (!emptySession || old?.sealed) throw new WorkspaceError("SESSION_STARTED", "This session has started or cannot be confirmed empty. Open the workspace in a new session instead")
-        if (old?.workspace && pathKey(old.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "Session Location changed")
-        if (!old && this.db.query<{ count: number }, []>("SELECT count(*) AS count FROM bindings").get()!.count >= 10_000) throw new WorkspaceError("REGISTRY_FULL", "Session catalog maintenance is required")
-        this.db.query("INSERT INTO bindings VALUES (?,?,?,0) ON CONFLICT(sessionID) DO UPDATE SET directory=excluded.directory,workspace=excluded.workspace").run(input.sessionID, directory, action.kind === "attach" ? JSON.stringify(workspace!) : null)
-      } else if (action.kind === "create") {
-        const definitions = this.state().workspaces
-        if (definitions.some((item) => item.name === action.name)) throw new WorkspaceError("WORKSPACE_EXISTS", "That workspace name already exists")
-        if (definitions.length >= 1000) throw new WorkspaceError("REGISTRY_FULL", "Workspace limit reached")
-        const created: Workspace = { id: randomUUID(), name: action.name, revision: 1, roots: [] }
-        this.db.query("INSERT INTO workspaces VALUES (?,?)").run(created.id, JSON.stringify(created))
-      } else if (action.kind === "remove") this.db.query("DELETE FROM workspaces WHERE id=?").run(workspace!.id)
-      else {
-        const updated = structuredClone(workspace!)
-        let altered = true
-        if (action.kind === "addRoot") {
+      switch (action.kind) {
+        case "attach":
+        case "detach": {
+          const workspace = action.kind === "attach" ? this.savedWorkspace(action.workspaceID) : null
+          if (!input.sessionID) throw new WorkspaceError("SESSION_REQUIRED", "Select an empty session first")
+          const old = this.row(input.sessionID)
+          if (!emptySession || old?.sealed) throw new WorkspaceError("SESSION_STARTED", "This session has started or cannot be confirmed empty. Open the workspace in a new session instead")
+          if (old?.workspace && pathKey(old.directory) !== pathKey(directory)) throw new WorkspaceError("LOCATION_MISMATCH", "Session Location changed")
+          if (!old && this.db.query<{ count: number }, []>("SELECT count(*) AS count FROM bindings").get()!.count >= 10_000) throw new WorkspaceError("REGISTRY_FULL", "Session catalog maintenance is required")
+          this.db.query("INSERT INTO bindings VALUES (?,?,?,0) ON CONFLICT(sessionID) DO UPDATE SET directory=excluded.directory,workspace=excluded.workspace").run(input.sessionID, directory, workspace ? JSON.stringify(workspace) : null)
+          break
+        }
+        case "create": {
+          const definitions = this.state().workspaces
+          if (definitions.some((item) => item.name === action.name)) throw new WorkspaceError("WORKSPACE_EXISTS", "That workspace name already exists")
+          if (definitions.length >= 1000) throw new WorkspaceError("REGISTRY_FULL", "Workspace limit reached")
+          const created: Workspace = { id: WorkspaceID.parse(randomUUID()), name: action.name, revision: 1, roots: [] }
+          this.db.query("INSERT INTO workspaces VALUES (?,?)").run(created.id, JSON.stringify(created))
+          break
+        }
+        case "remove":
+          this.db.query("DELETE FROM workspaces WHERE id=?").run(this.savedWorkspace(action.workspaceID).id)
+          break
+        case "addRoot": {
+          const updated = this.savedWorkspace(action.workspaceID)
           if (!canonicalRoot) throw new WorkspaceError("INVALID_PATH", "Missing validated root")
-          if (!updated.roots.some((root) => pathKey(root.path) === pathKey(canonicalRoot))) {
-            if (updated.roots.length >= 20) throw new WorkspaceError("ROOT_LIMIT", "A workspace supports at most 20 folders")
-            let alias = action.alias ?? suggestedAlias(canonicalRoot)
-            if (action.alias && updated.roots.some((root) => root.alias === alias)) throw new WorkspaceError("ALIAS_EXISTS", "That alias already belongs to another folder")
-            for (let suffix = 2; updated.roots.some((root) => root.alias === alias); suffix++) alias = `${suggestedAlias(canonicalRoot)}-${suffix}`
-            updated.roots.push({ alias, path: canonicalRoot })
-          } else altered = false
-        } else {
+          if (updated.roots.some((root) => pathKey(root.path) === pathKey(canonicalRoot))) break
+          if (updated.roots.length >= 20) throw new WorkspaceError("ROOT_LIMIT", "A workspace supports at most 20 folders")
+          let alias = action.alias ?? suggestedAlias(canonicalRoot)
+          if (action.alias && updated.roots.some((root) => root.alias === alias)) throw new WorkspaceError("ALIAS_EXISTS", "That alias already belongs to another folder")
+          for (let suffix = 2; updated.roots.some((root) => root.alias === alias); suffix++) alias = `${suggestedAlias(canonicalRoot)}-${suffix}`
+          updated.roots.push({ alias, path: canonicalRoot })
+          this.saveRevision(updated)
+          break
+        }
+        case "removeRoot": {
+          const updated = this.savedWorkspace(action.workspaceID)
           if (!updated.roots.some((root) => root.alias === action.alias)) throw new WorkspaceError("UNKNOWN_ROOT", "Folder registration no longer exists")
           updated.roots = updated.roots.filter((root) => root.alias !== action.alias)
+          this.saveRevision(updated)
+          break
         }
-        if (altered) {
-          updated.revision++
-          this.db.query("UPDATE workspaces SET data=? WHERE id=?").run(JSON.stringify(Workspace.parse(updated)), updated.id)
-        }
+        default: unreachable(action)
       }
       this.db.query("UPDATE catalog SET revision=revision+1").run()
       this.db.query("INSERT INTO receipts VALUES (?,?)").run(input.requestID, fingerprint)

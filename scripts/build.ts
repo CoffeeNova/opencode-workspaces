@@ -1,9 +1,12 @@
 import * as fs from "node:fs/promises"
 import path from "node:path"
+import { z } from "zod"
 
 const root = path.resolve(import.meta.dir, "..")
 const output = path.join(root, "dist")
-const manifest = await Bun.file(path.join(root, "package.json")).json()
+const Versions = z.record(z.string(), z.string())
+const manifest = z.object({ name: z.string(), version: z.string(), description: z.string(), engines: Versions, dependencies: Versions, peerDependencies: Versions })
+  .parse(await Bun.file(path.join(root, "package.json")).json())
 const result = await Bun.build({
   entrypoints: ["index.ts", "tui.ts", "rpc.ts"].map((file) => path.join(root, "src", file)),
   outdir: output,
