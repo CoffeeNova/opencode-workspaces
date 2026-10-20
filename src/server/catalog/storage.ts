@@ -47,11 +47,12 @@ export function enableDurableWrites(db: Database) {
   db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL")
 }
 
-function hasTables(db: Database) {
-  return (
-    db.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type='table'").all()
-      .length > 0
-  )
+function readApplicationID(db: Database) {
+  return db.query<{ application_id: number }, []>("PRAGMA application_id").get()!.application_id
+}
+
+function listTables(db: Database) {
+  return db.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type='table'").all()
 }
 
 function assertSupportedVersion(db: Database) {
@@ -63,24 +64,31 @@ function assertSupportedVersion(db: Database) {
     )
 }
 
-// Read-only opens pass allowEmpty=false: anything but a v2 catalog is rejected.
-// Writable opens pass allowEmpty=true: a brand-new, table-less file (not yet on disk
-// before this open) is reported as "empty" so the caller can initialize it.
-export function assertCatalogFormat(
-  db: Database,
-  options: { allowEmpty: boolean; exists: boolean },
-): CatalogFormat {
-  const app = db.query<{ application_id: number }, []>("PRAGMA application_id").get()!
-    .application_id
+function notACatalog() {
+  return new WorkspaceError(
+    "INVALID_REGISTRY",
+    "This is not a workspace catalog; nothing was overwritten",
+  )
+}
+
+// Read-only opens accept only a supported catalog and never read the schema table here.
+export function assertReadableCatalog(db: Database) {
+  if (readApplicationID(db) !== APPLICATION_ID) throw notACatalog()
+  assertSupportedVersion(db)
+}
+
+// Writable opens read the table list right after the application id, before deciding,
+// so a malformed schema fails as storage corruption whatever the id is. A brand-new,
+// table-less file (not on disk before this open) is "empty" and may be initialized.
+export function writableCatalogFormat(db: Database, exists: boolean): CatalogFormat {
+  const app = readApplicationID(db)
+  const tables = listTables(db)
   if (app === APPLICATION_ID) {
     assertSupportedVersion(db)
     return "ready"
   }
-  if (options.allowEmpty && app === 0 && !hasTables(db) && !options.exists) return "empty"
-  throw new WorkspaceError(
-    "INVALID_REGISTRY",
-    "This is not a workspace catalog; nothing was overwritten",
-  )
+  if (app !== 0 || tables.length > 0 || exists) throw notACatalog()
+  return "empty"
 }
 
 export function initializeCatalog(db: Database) {

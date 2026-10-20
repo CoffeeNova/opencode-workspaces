@@ -216,6 +216,38 @@ test("foreign/corrupt databases and JSON paths are rejected without replacing by
   expect(await fs.readFile(json)).toEqual(bytes)
 })
 
+// Rewrites "CREATE TABLE catalog" in place so SQLite reports a malformed schema on first use.
+async function corruptSchema(applicationID: number) {
+  const catalog = await open()
+  connections.splice(connections.indexOf(catalog), 1)
+  catalog.close()
+  const db = new Database(file())
+  db.exec(`PRAGMA application_id=${applicationID}`)
+  db.close()
+  const bytes = await fs.readFile(file())
+  const offset = bytes.indexOf("CREATE TABLE catalog")
+  expect(offset).toBeGreaterThan(-1)
+  bytes.write("CREATE TABLX catalog", offset)
+  await fs.writeFile(file(), bytes)
+  return bytes
+}
+
+test("a malformed schema under a foreign application id fails open as storage corruption", async () => {
+  const bytes = await corruptSchema(0x12345678)
+  await expect(Catalog.existing(file(), base)).rejects.toThrow(
+    "INVALID_REGISTRY: This is not a workspace catalog; nothing was overwritten",
+  )
+  await expect(Catalog.open(file(), base)).rejects.toMatchObject({ code: "SQLITE_CORRUPT" })
+  expect(await fs.readFile(file())).toEqual(bytes)
+})
+
+test("a malformed schema under the catalog application id fails both opens as storage corruption", async () => {
+  const bytes = await corruptSchema(0x57534d32)
+  await expect(Catalog.existing(file(), base)).rejects.toMatchObject({ code: "SQLITE_CORRUPT" })
+  await expect(Catalog.open(file(), base)).rejects.toMatchObject({ code: "SQLITE_CORRUPT" })
+  expect(await fs.readFile(file())).toEqual(bytes)
+})
+
 test("defaults use the OpenCode configuration directory without filesystem or old-path discovery", async () => {
   const expected = path.join(
     homedir(),

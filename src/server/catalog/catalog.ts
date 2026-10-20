@@ -9,11 +9,12 @@ import { pathKey } from "../filesystem/paths.ts"
 import { applyAction, type ActionContext } from "./actions.ts"
 import { decodeBinding, decodeWorkspace, readBindingRow, readMeta } from "./codec.ts"
 import {
-  assertCatalogFormat,
+  assertReadableCatalog,
   configureConnection,
   enableDurableWrites,
   initializeCatalog,
   locateCatalog,
+  writableCatalogFormat,
 } from "./storage.ts"
 
 export class Catalog {
@@ -29,7 +30,7 @@ export class Catalog {
     const db = new Database(target.file, { readonly: true, strict: true })
     try {
       configureConnection(db)
-      assertCatalogFormat(db, { allowEmpty: false, exists: target.exists })
+      assertReadableCatalog(db)
       const catalog = new Catalog(db)
       readMeta(db)
       return catalog
@@ -50,7 +51,7 @@ export class Catalog {
     try {
       configureConnection(db)
       db.transaction(() => {
-        const format = assertCatalogFormat(db, { allowEmpty: true, exists: target.exists })
+        const format = writableCatalogFormat(db, target.exists)
         if (format === "empty") initializeCatalog(db)
       }).immediate()
       enableDurableWrites(db)
