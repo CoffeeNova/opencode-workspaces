@@ -1,103 +1,100 @@
-# Agent Entry Point
+# AI development guide
 
-Start here when working in this repository. This file is a navigation guide;
-the detailed development contract lives in the documents linked below.
+This is the entry point for agents working on `opencode-workspaces`.
+The repository's development knowledge lives in [.agents](.agents); source and
+tests remain the authority for implemented behavior.
 
-## Read first
+## Start here
 
-1. [Development plan and contract](docs/DEVELOPMENT_PLAN.md) — the intended
-   product, architecture, implementation phases, and acceptance criteria. Read
-   this before implementation; do not treat it as a list of completed features.
-2. [README](README.md) — the current implementation, installation, security
-   behavior, and verification commands for the current plugin package.
-3. The relevant source and tests below. Check the actual tree and Git status
-   before editing. Follow the plan's Section 0 revision before the older phase order.
+1. Read [project context](.agents/CONTEXT.md) for the product contracts, runtime
+   baseline, storage rules, limits, and validation permissions.
+2. Use [architecture](.agents/ARCHITECTURE.md) to locate the owning modules and
+   follow the relevant server/TUI/RPC flow.
+3. Inspect Git status, the actual source/tests, and any nested `AGENTS.md` before
+   editing. Preserve existing user changes.
+4. For TypeScript work, load the [rules](.agents/rules/best-practices.mdc) and
+   [TypeScript skill](.agents/skills/typescript-best-practices/SKILL.md).
 
-If old code, command prompts, or README limitations conflict with the target
-design, follow the development contract for new implementation. Surface a genuine
-conflict or unsupported host capability rather than silently changing the goal.
+Read task-relevant resources rather than loading the entire library. If this
+guide and the implementation disagree, investigate and surface the mismatch;
+do not invent a host capability or silently change the product contract.
 
-## Navigate by task
+## Find the right owner
 
 | Task | Start with |
 | --- | --- |
-| Understand the goal and boundaries | Plan: [requirements](docs/DEVELOPMENT_PLAN.md#1-purpose-and-confirmed-decisions), [scope](docs/DEVELOPMENT_PLAN.md#4-scope-and-non-goals) |
-| Verify OpenCode capabilities | Plan: [API surface and capability gates](docs/DEVELOPMENT_PLAN.md#5-verified-opencode-api-surface-and-capability-gates), [sources](docs/DEVELOPMENT_PLAN.md#17-sources-and-research-boundaries) |
-| Understand deferred host limitations | [Historical capability evidence](docs/PHASE_ZERO_FINDINGS.md); do not expand probes instead of implementing the revised release |
-| Resume work in a new session | [Working-plugin handoff and exact next steps](docs/PHASE_ZERO_HANDOFF.md) |
-| Refactor or choose module boundaries | Plan: [architecture](docs/DEVELOPMENT_PLAN.md#6-architecture) |
-| Change storage or workspace selection | Plan: [persistence and migration](docs/DEVELOPMENT_PLAN.md#7-data-model-persistence-and-migration), [session isolation](docs/DEVELOPMENT_PLAN.md#8-session-isolation-and-lifecycle) |
-| Build menus, folder browsing, or indicators | Plan: [TUI contract](docs/DEVELOPMENT_PLAN.md#9-tui-interaction-contract), [RPC](docs/DEVELOPMENT_PLAN.md#12-rpc-and-compatibility-tool-contracts) |
-| Handle project instructions or compaction | Plan: [agent context and AGENTS.md](docs/DEVELOPMENT_PLAN.md#10-agent-context-and-agentsmd) |
-| Enable edits, search, tests, or Git across roots | Plan: [full development](docs/DEVELOPMENT_PLAN.md#11-full-development-across-independent-roots), [security](docs/DEVELOPMENT_PLAN.md#13-security-and-failure-behavior) |
-| Select the next implementation step | Plan: [phases and exit criteria](docs/DEVELOPMENT_PLAN.md#14-implementation-sequence-and-exit-criteria) |
-| Test or review a change | Plan: [verification matrix](docs/DEVELOPMENT_PLAN.md#15-verification-matrix), [definition of done](docs/DEVELOPMENT_PLAN.md#16-definition-of-done-and-non-negotiable-review-rules) |
+| Install or explain the plugin | [README](README.md) |
+| Understand behavior and constraints | [Context](.agents/CONTEXT.md), [architecture](.agents/ARCHITECTURE.md) |
+| Change schemas or the RPC contract | [domain.ts](src/domain.ts), [rpc.ts](src/rpc.ts) |
+| Change storage, selection, or request admission | [index.ts](src/index.ts), [catalog.ts](src/infrastructure/catalog.ts), [catalog tests](tests/catalog.test.ts), [server tests](tests/workspaces.test.ts) |
+| Change paths, permissions, or multi-root search | [paths.ts](src/infrastructure/paths.ts), [search.ts](src/infrastructure/search.ts), [filesystem tests](tests/filesystem.test.ts) |
+| Change instruction delivery or native mutation preflight | [delivery.ts](src/instructions/delivery.ts), [index.ts](src/index.ts), [instruction tests](tests/instructions-probe.test.ts) |
+| Change menus, browsing, or session navigation | [tui.ts](src/tui.ts), [TUI tests](tests/workspace-tui.test.ts) |
+| Change the footer indicator | [indicator.ts](src/tui/indicator.ts), [TUI tests](tests/workspace-tui.test.ts) |
+| Change building, packaging, or the optional launcher | [build.ts](scripts/build.ts), [pack.ts](scripts/pack.ts), [start.ts](scripts/start.ts), [package.json](package.json) |
+| Work on actual-package acceptance | [check-workspaces.ts](scripts/check-workspaces.ts), [verification boundaries](.agents/CONTEXT.md#verification) |
+| Work on historical host probes | [Fixtures](tests/fixtures/phase-zero-plugin), [architecture notes](.agents/ARCHITECTURE.md#build-and-verification-surfaces) |
 
-## Current repository map
+## Skills, commands, and rules
 
-| Path | Responsibility |
+| Resource | When to use |
 | --- | --- |
-| [src/index.ts](src/index.ts), [src/rpc.ts](src/rpc.ts), [src/tui.ts](src/tui.ts) | New real server/RPC/TUI package; explicit session binding and native menus |
-| [src/tui/indicator.ts](src/tui/indicator.ts) | Session-aware footer label, metadata reconciliation, and UI-runtime integration |
-| [src/infrastructure/](src/infrastructure/), [src/instructions/](src/instructions/) | Transactional catalog, server paths/browser, and scoped instruction delivery |
-| [scripts/check-workspaces.ts](scripts/check-workspaces.ts) | End-to-end check of the actual package after implementation; real private TUI and native development |
-| [tests/catalog.test.ts](tests/catalog.test.ts), [tests/workspaces.test.ts](tests/workspaces.test.ts), [tests/workspace-tui.test.ts](tests/workspace-tui.test.ts) | Current storage, opt-in server hooks/admission, and deterministic TUI regressions without OpenCode |
-| [tests/helpers/workspace-server.ts](tests/helpers/workspace-server.ts) | Actual production server with mocked native host APIs and isolated SQLite fixtures; no replacement workspace service |
-| [tests/filesystem.test.ts](tests/filesystem.test.ts) | Current filesystem/security, search, and documented PowerShell-command regression coverage |
-| [tests/opencode-capabilities.ts](tests/opencode-capabilities.ts), [tests/fixtures/phase-zero-plugin/](tests/fixtures/phase-zero-plugin/) | Isolated Phase-zero server/TUI/RPC and native-tool proof; not production entrypoints |
-| [tests/boundary-probe.test.ts](tests/boundary-probe.test.ts) | Throwaway boundary protocol: snapshots, revisions, all-session checks, and scoped cancellation |
-| [tests/opencode-tui-capabilities.ts](tests/opencode-tui-capabilities.ts), [tests/helpers/tui-capability.ts](tests/helpers/tui-capability.ts) | Provider-disabled real TUI checks: drafts, session routing, dialogs, source reload, and listener cleanup; not production administration |
-| [tests/opencode-instruction-capabilities.ts](tests/opencode-instruction-capabilities.ts), [tests/instructions-probe.test.ts](tests/instructions-probe.test.ts) | Fixed-root scoped instruction delivery, generating-request fingerprints, native mutation rejection, and byte-budget negative cases; not production bindings or a complete instruction service |
-| [package.json](package.json), [tsconfig.json](tsconfig.json), [bun.lock](bun.lock) | Dependencies, scripts, TypeScript configuration, and dependency lock |
+| [typescript-best-practices](.agents/skills/typescript-best-practices/SKILL.md) | Writing, reviewing, or refactoring TypeScript: narrowing, strict types, unions, `satisfies`, and resource ownership. |
+| [audit](.agents/commands/audit.md) | A requested TypeScript best-practices audit. Read the skill first and report findings; do not turn an audit into unrequested edits. |
+| [TypeScript rules](.agents/rules/best-practices.mdc) | Concise checks to apply during TypeScript changes. |
+| [Third-party notices](.agents/THIRD_PARTY_NOTICES.md) | Upstream source, pinned revision, license, and import maintenance. |
+
+Skills use the standard `.agents/skills/<name>/SKILL.md` layout. Commands and rules
+are linked development resources; their folders do not register OpenCode runtime
+slash commands or configure editor-specific discovery.
+
+Imported examples are guidance, not authorization to change unrelated compiler
+options, replace existing domain schemas, or refactor working code. Prefer this
+project's existing helpers and validated boundaries.
 
 ## Working rules
 
-- Keep code and repository documentation in English.
-- Read any applicable nested `AGENTS.md` before changing files in its scope.
-- For implementation, follow the plan's Section 0 revision and working-slice order. Do not
-  invent APIs or replace a failed capability check with a model-driven workaround.
-- Preserve the core decisions: deterministic TUI administration without model
-  calls, per-session workspace selection, scoped instruction delivery, and full
-  multi-root development under normal OpenCode permissions.
-- Preserve existing storage and security guarantees while refactoring. Revise
-  tests that encode superseded product behavior deliberately, not merely to make
-  failures disappear.
-- Support only the current SQLite format. Earlier unreleased plugins, JSON import,
-  schema upgrades, and old-path fallback have been retired; do not reintroduce them.
-- Keep changes within the requested task. A plan is not authorization to execute
-  every phase. Preserve unrelated user work; do not commit unless asked.
-- Use isolated fixtures and registries. Do not edit real user registries/global
-  configuration or restart the shared OpenCode service just to test a change.
-- Keep this entry point and its links current when documents or modules move.
-  Put detailed design in the plan rather than duplicating it here.
+- Keep code and repository documentation in English. Follow the existing
+  TypeScript style: two-space indentation, double quotes, and no semicolons.
+- Keep changes within the requested scope. Reuse Zod schemas, path checks,
+  instruction delivery, and catalog transactions instead of duplicating them.
+- Preserve explicit opt-in activation, per-session pinned selections,
+  deterministic model-free administration, and native tool permissions.
+- Do not add automatic inheritance, a global active selection, native metadata
+  mirrors, old-format import/upgrade paths, or unverified OpenCode APIs.
+- Keep errors explicit. Preserve native permission rejection and cancellation;
+  do not substitute empty state or a success-shaped fallback for unavailable
+  storage, instruction failure, or denied access.
+- Test with isolated fixtures. Never alter real catalogs/global configuration,
+  restart a shared OpenCode service, or make real provider requests to validate
+  a routine change.
+- Do not edit generated `dist`, dependency folders, or archives as source.
+  Do not stage, commit, push, or discard unrelated work unless requested.
 
 ## Verification
 
-Production-only checks from the repository root do not execute tests or OpenCode:
-
-```powershell
-bun run typecheck
-bun run build
-bun run pack
-```
-
-The user approved related automated unit/adapter test updates, execution, and
-full typechecking after reviewing the implementation. Use isolated fixtures:
+For code changes, run the relevant existing checks from the repository root:
 
 ```powershell
 bun run bun-typecheck
 bun test
 ```
 
-OpenCode, acceptance-harness, loader smoke, and live capability checks still
-require separate approval. Do not run `bun run check:workspaces` or the runtime
-commands below under the automated-only approval.
+Use focused tests while iterating. Production-only checking is `bun run
+typecheck`; build/package changes also use `bun run build` and, when relevant,
+`bun run pack`. See [the verification matrix](.agents/CONTEXT.md#verification).
 
-Build/package success is not proof that TUI interaction, instruction delivery,
-or cross-root development works. Use the plan's corresponding acceptance tests.
-Historical Phase-zero probes: `bun run test:capabilities` and `bun run test:capabilities:tui`.
-Instruction-only iteration: `bun run test:capabilities:instructions` (scripted provider).
-UI-only iteration: `bun run tests/opencode-tui-capabilities.ts --keep` (disabled provider).
-Check their findings document before claiming any lifecycle gate is satisfied.
-For documentation-only changes, validate links/anchors and run `git diff --check`.
-Report what was verified and what still requires live runtime testing.
+Documentation-only work needs link/anchor and customization-metadata validation
+plus `git diff --check`, not a build or tests.
+
+OpenCode, the optional launcher, actual-package acceptance, and live capability
+scripts require separate user approval. Build or unit-test success is not proof
+of live TUI, instruction, or cross-root behavior.
+
+## Keep the library current
+
+Update context when a product constraint or supported baseline changes, and
+architecture when an owner, boundary, or flow changes. Update this index when
+adding or moving a library resource. Keep the README focused on what the plugin
+does and how to install it; do not put plans, audit logs, or agent instructions
+there.
