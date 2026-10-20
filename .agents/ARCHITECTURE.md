@@ -15,7 +15,8 @@ src/shared/   schemas, errors, limits, rpc-contract      (imports no other src f
     ^                                      ^
     |                                      |
 src/tui/                               src/server/
-  plugin.ts, target.ts, messages.ts      plugin.ts -> runtime.ts (owners below)
+  plugin.ts, target.ts, messages.ts,     plugin.ts -> runtime.ts (owners below)
+  client.ts (typed RPC client)
   menu/       MenuSession + one          rpc-handlers.ts, hooks/, tools/
               module per flow            sessions/, catalog/ -> SQLite
   indicator/  footer + SelectionPoller   filesystem/, search/ -> isolated regex worker
@@ -45,14 +46,14 @@ tools. `disposeRuntime` clears every owner on unload.
 | Owner | Job |
 | --- | --- |
 | `MenuSession` | One open menu: its pinned target, the last loaded state, validity checks against navigation or disposal, and the guarded `change` call. Each menu flow receives it as its context. |
-| `SelectionPoller` | Keeps one displayed session's selection current: one request at a time, queued refreshes, a per-request timeout, and backoff polling only while a workspace is active. |
+| `SelectionPoller` | Keeps one displayed session's selection current: one request at a time, queued refreshes, a per-request timeout, and backoff polling only while a workspace is active. It is private; the indicator starts one through the exported `watchSelection()`, which returns the cleanup function. |
 
 ## Source map
 
 | Module | Responsibility |
 | --- | --- |
 | [schemas.ts](../src/shared/schemas.ts) | Zod schemas and inferred types for definitions, bindings, actions, changes, and selection metadata. |
-| [errors.ts](../src/shared/errors.ts) | `WorkspaceError`, error codes, and unavailable-storage code classification. |
+| [errors.ts](../src/shared/errors.ts) | `WorkspaceError`, error codes, `errorCode`/`isNotFound` readers, and unavailable-storage code classification. |
 | [limits.ts](../src/shared/limits.ts) | Named catalog, session, search, instruction, browse, and indicator-timing limits. |
 | [rpc-contract.ts](../src/shared/rpc-contract.ts) | Shared `WorkspaceRPC` contract (re-exported by [rpc.ts](../src/rpc.ts)): `state`, `selection`, `change`, `browse`, and the `changed` event. |
 | [plugin.ts](../src/server/plugin.ts) | Server composition: option validation, runtime creation, registration order, and disposal ([index.ts](../src/index.ts) re-exports it). |
@@ -61,17 +62,18 @@ tools. `disposeRuntime` clears every owner on unload.
 | [rpc-handlers.ts](../src/server/rpc-handlers.ts) | `state`, `selection`, `change`, and `browse` handlers and the `changed` emitter. |
 | [hooks/](../src/server/hooks) | Context delivery (`context.ts`), compaction (`compaction.ts`), native-tool preflight (`tool-preflight.ts`), and `workspace_escape` evaluation (`permission.ts`). |
 | [tools/](../src/server/tools) | Helper tool registration (`index.ts`) and the search, status, and resolve tools. |
-| [prompts.ts](../src/server/prompts.ts) | Model-visible system text and helper tool descriptions. |
+| [prompts.ts](../src/server/prompts.ts) | Model-visible system text, helper tool names (`HELPER_TOOLS`), and helper tool descriptions. |
 | [failures.ts](../src/server/failures.ts) | Mapping of storage/filesystem outages to `WorkspaceError`; other failures propagate. |
-| [catalog/](../src/server/catalog) | `CatalogAccess` (`catalog-access.ts`); transactions, revisions, request receipts, and pinned session bindings (`catalog.ts`); SQLite format validation, schema, and pragmas (`storage.ts`); row decoding and metadata checks (`codec.ts`); per-action handlers (`actions.ts`). |
+| [catalog/](../src/server/catalog) | `CatalogAccess` (`catalog-access.ts`); transactions, revisions, request receipts, and pinned session bindings (`catalog.ts`); SQLite format validation for read-only and writable opens, schema, and pragmas (`storage.ts`); row decoding and metadata checks (`codec.ts`); per-action handlers (`actions.ts`). |
 | [filesystem/](../src/server/filesystem) | Path keys, containment, and expansion (`paths.ts`); sensitive-path denial, canonicalization, root overlap, and native target checks (`policy.ts`); no-follow cancellable bounded reads with UTF-8 decoding (`safe-read.ts`); folder browsing for the RPC `browse` method (`browse.ts`). |
 | [search/](../src/server/search) | Glob/regex validation (`patterns.ts`), ignore-aware traversal (`walk.ts`), regex worker isolation (`regex-worker.ts`), and multi-root search results with bounded UTF-8 reads (`search.ts`). |
 | [instructions/](../src/server/instructions) | Shared types and `InstructionError` (`types.ts`), `SessionInstructions` (`session-instructions.ts`), snapshot lifecycle and mutation preflight (`delivery.ts`), target-to-scope mapping (`scopes.ts`), bounded `AGENTS.md` reads (`sources.ts`), the delivered block (`render.ts`), and patch target parsing (`patch-targets.ts`). |
 | [plugin.ts](../src/tui/plugin.ts) | TUI composition: the three slash/palette commands, the one-menu-at-a-time guard, indicator registration, and disposal ([tui.ts](../src/tui.ts) re-exports it). |
 | [target.ts](../src/tui/target.ts) | The displayed session and Location a menu is pinned to, and target equality. |
 | [messages.ts](../src/tui/messages.ts) | User-facing menu, dialog, and status text. |
-| [menu/](../src/tui/menu) | `MenuSession` and the typed RPC client (`session.ts`), the main menu and entry dispatch (`main-menu.ts`), and one module per flow: create, delete, add/remove folder, switch/attach, status, and new-session navigation (`open-session.ts`). |
-| [indicator/](../src/tui/indicator) | Session-aware footer rendering (`indicator.ts`), `SelectionPoller` with coalescing, backoff, cancellation, and listener cleanup (`selection-poller.ts`), and grapheme-safe label fitting (`label.ts`). |
+| [client.ts](../src/tui/client.ts) | The typed `WorkspaceRPC` client shared by the menu and the indicator. |
+| [menu/](../src/tui/menu) | `MenuSession` (`session.ts`), the main menu and entry dispatch (`main-menu.ts`), and one module per flow: create, delete, add/remove folder, switch/attach, status, and new-session navigation (`open-session.ts`). |
+| [indicator/](../src/tui/indicator) | Session-aware footer rendering (`indicator.ts`), `watchSelection()` and the private `SelectionPoller` with coalescing, backoff, cancellation, and listener cleanup (`selection-poller.ts`), and grapheme-safe label fitting (`label.ts`). |
 
 Keep domain schemas independent of the host UI and storage. Server modules own
 filesystem/database mechanics, native permissions, and session identity. TUI code
@@ -182,9 +184,9 @@ runtime instances.
 ## Build and verification surfaces
 
 - [build.ts](../scripts/build.ts) bundles the three entrypoints into `dist`,
-  writes its standalone manifest, and copies the human-facing README. Host
-  packages that must stay external are listed in
-  [externals.ts](../scripts/lib/externals.ts).
+  writes its standalone manifest, and copies the human-facing README. The
+  entrypoint list and the host packages that must stay external are shared with
+  `check-workspaces.ts` through [externals.ts](../scripts/lib/externals.ts).
 - [pack.ts](../scripts/pack.ts) builds and archives that distribution using its
   manifest's file list. Source, tests, and the AI library are not plugin payload.
 - [start.ts](../scripts/start.ts) is an optional isolated demo launcher. Normal

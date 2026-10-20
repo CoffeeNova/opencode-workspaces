@@ -30,7 +30,7 @@ do not invent a host capability or silently change the product contract.
 | Change paths, permissions, or multi-root search | [filesystem](src/server/filesystem), [search](src/server/search), [filesystem tests](tests/server/filesystem.test.ts), [search tests](tests/server/search.test.ts) |
 | Change instruction delivery or native mutation preflight | [instructions](src/server/instructions), [hooks](src/server/hooks), [instruction tests](tests/server/instructions.test.ts) |
 | Change menus, browsing, or session navigation | [menu](src/tui/menu), [plugin.ts](src/tui/plugin.ts), [target.ts](src/tui/target.ts), [messages.ts](src/tui/messages.ts), [TUI tests](tests/tui/menu.test.ts) |
-| Change the footer indicator | [indicator/](src/tui/indicator), [label tests](tests/tui/label.test.ts), [TUI tests](tests/tui/menu.test.ts) |
+| Change the footer indicator | [indicator/](src/tui/indicator), [label tests](tests/tui/label.test.ts), [polling tests](tests/tui/selection-poller.test.ts), [TUI tests](tests/tui/menu.test.ts) |
 | Change building, packaging, or the optional launcher | [build.ts](scripts/build.ts), [pack.ts](scripts/pack.ts), [start.ts](scripts/start.ts), [package.json](package.json) |
 | Work on actual-package acceptance | [check-workspaces.ts](scripts/check-workspaces.ts), [live support](tests/live), [verification boundaries](.agents/CONTEXT.md#verification) |
 
